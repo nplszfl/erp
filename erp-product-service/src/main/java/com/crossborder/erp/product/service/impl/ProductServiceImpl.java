@@ -1,0 +1,59 @@
+package com.crossborder.erp.product.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.crossborder.erp.product.entity.Product;
+import com.crossborder.erp.product.mapper.ProductMapper;
+import com.crossborder.erp.product.service.ProductService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> implements ProductService {
+
+    @Override
+    public Product saveProduct(Product product) {
+        if (product.getId() == null) {
+            save(product);
+        } else {
+            updateById(product);
+        }
+        return product;
+    }
+
+    @Override
+    public Product getProductById(Long id) {
+        return getById(id);
+    }
+
+    @Override
+    public Product getProductBySku(String sku) {
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Product::getInternalSku, sku);
+        return getOne(wrapper);
+    }
+
+    @Override
+    public IPage<Product> pageProducts(Page<Product> page, String productName, Long categoryId) {
+        LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
+
+        if (productName != null) {
+            wrapper.like(Product::getProductName, productName);
+        }
+        if (categoryId != null) {
+            wrapper.eq(Product::getCategoryId, categoryId);
+        }
+
+        wrapper.orderByDesc(Product::getCreateTime);
+
+        return page(page, wrapper);
+    }
+
+    @Override
+    public void deleteProduct(Long id) {
+        removeById(id);
+    }
+}

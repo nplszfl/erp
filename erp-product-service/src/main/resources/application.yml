@@ -1,0 +1,44 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: erp-product-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        namespace: erp-dev
+        group: DEFAULT_GROUP
+      config:
+        server-addr: localhost:8848
+        namespace: erp-dev
+        group: DEFAULT_GROUP
+        file-extension: yml
+    sentinel:
+      transport:
+        dashboard: localhost:8858
+        port: 8722
+      eager: true
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/erp_product?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: root
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
