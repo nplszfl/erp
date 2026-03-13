@@ -1,0 +1,50 @@
+name: Automated Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        echo "release_notes=## 跨境电商ERP系统 ${{ steps.version.outputs.version }}
+
+        ### 更新内容
+        - 完善平台API对接
+        - 添加单元测试
+        - 添加CI/CD自动化
+
+        ### 快速开始
+        \`\`\`bash
+        docker-compose up -d
+        \`\`\`" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ github.ref }}
+        name: Release ${{ steps.version.outputs.version }}
+        body: ${{ steps.release_notes.outputs.release_notes }}
+        draft: false
+        prerelease: false
+
+    - name: Build and publish
+      run: |
+        echo "Building release version: ${{ steps.version.outputs.version }}"
+        # TODO: 构建并发布到Maven Central

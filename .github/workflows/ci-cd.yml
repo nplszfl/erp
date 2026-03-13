@@ -1,0 +1,199 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '21'
+  NODE_VERSION: '18'
+
+jobs:
+  # 后端构建和测试
+  backend-build-test:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Build with Maven
+      run: mvn clean compile -DskipTests
+
+    - name: Run tests
+      run: mvn test
+
+    - name: Package with Maven
+      run: mvn clean package -DskipTests
+
+    - name: Upload JAR files
+      uses: actions/upload-artifact@v4
+      with:
+        name: jar-files
+        path: '*/target/*.jar'
+        retention-days: 7
+
+  # 前端构建和测试
+  frontend-build-test:
+    name: Frontend Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: erp-web/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./erp-web
+      run: npm ci
+
+    - name: Lint check
+      working: ./erp-web
+      run: npm run lint --if-present
+
+    - name: Run tests
+      working-directory: ./erp-web
+      run: npm run test --if-present
+
+    - name: Build
+      working-directory: ./erp-web
+      run: npm run build
+
+    - name: Upload dist files
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-files
+        path: erp-web/dist
+        retention-days: 7
+
+  # Docker镜像构建
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [backend-build-test, frontend-build-test]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and push Gateway image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.gateway
+        push: true
+        tags: nplszfl/erp-gateway:latest,nplszfl/erp-gateway:${{ github.sha }}
+
+    - name: Build and push Order Service image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.order
+        push: true
+        tags: nplszfl/erp-order-service:latest,nplszfl/erp-order-service:${{ github.sha }}
+
+    - name: Build and push Frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: nplszfl/erp-frontend:latest,nplszfl/erp-frontend:${{ github.sha }}
+
+  # 部署到Kubernetes
+  deploy-k8s:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://erp.example.com
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: 'v1.28.0'
+
+    - name: Set up kubeconfig
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+        export KUBECONFIG=kubeconfig.yaml
+
+    - name: Deploy to Kubernetes
+      run: |
+        # 部署Gateway
+        kubectl set image deployment/erp-gateway \
+          erp-gateway=nplszfl/erp-gateway:${{ github.sha }} \
+          -n erp --context=default
+
+        # 部署Order Service
+        kubectl set image deployment/erp-order-service \
+          erp-order-service=nplszfl/erp-order-service:${{ github.sha }} \
+          -n erp --context=default
+
+        # 部署Frontend
+        kubectl set image deployment/erp-frontend \
+          erp-frontend=nplszfl/erp-frontend:${{ github.sha }} \
+          -n erp --context=default
+
+    - name: Wait for deployment
+      run: |
+        kubectl rollout status deployment/erp-gateway -n erp --context=default --timeout=5m
+        kubectl rollout status deployment/erp-order-service -n erp --context=default --timeout=5m
+        kubectl rollout status deployment/erp-frontend -n erp --context=default --timeout=5m
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods -n erp
+        kubectl get svc -n erp
+
+  # 通知部署结果
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [deploy-k8s]
+    if: always()
+
+    steps:
+    - name: Send notification
+      if: success()
+      run: |
+        echo "✅ 部署成功！"
+        # TODO: 添加飞书/钉钉通知
+
+    - name: Send failure notification
+      if: failure()
+      run: |
+        echo "❌ 部署失败！"
+        # TODO: 添加飞书/钉钉通知
