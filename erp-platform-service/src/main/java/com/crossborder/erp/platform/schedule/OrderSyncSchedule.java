@@ -5,6 +5,7 @@ import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.platform.api.PlatformOrderSync;
 import com.crossborder.erp.platform.entity.PlatformConfig;
 import com.crossborder.erp.platform.service.PlatformConfigService;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,10 +13,10 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import;
+import java.util.Map;
 
 /**
- * 订单同步调度器
+ * 订单同步调度器（带监控）
  * 定时从各平台拉取新订单
  */
 @Slf4j
@@ -31,6 +32,7 @@ public class OrderSyncSchedule {
      * 每10分钟同步一次订单
      */
     @Scheduled(cron = "0 */10 * * * ?")
+    @Timed(value = "sync.orders", description = "定时同步订单", histogram = true)
     public void syncOrders() {
         log.info("开始定时同步订单...");
 
@@ -39,12 +41,13 @@ public class OrderSyncSchedule {
                 .filter(config -> config.getStatus() == 1) // 只同步启用的配置
                 .forEach(this::syncPlatformOrders);
 
-        log.info("订单同步完成");
+        log log.info("订单同步完成");
     }
 
     /**
      * 同步单个平台的订单
      */
+    @Timed(value = "sync.platform.orders", description = "同步平台订单")
     private void syncPlatformOrders(PlatformConfig config) {
         try {
             String platform = config.getPlatform();
@@ -86,6 +89,7 @@ public class OrderSyncSchedule {
     /**
      * 保存订单到订单服务
      */
+    @Timed(value = "sync.save.order", description = "保存订单到订单服务")
     private void saveOrderToOrderService(Order order, List<OrderItem> items) {
         // TODO: 调用订单服务API保存订单
         // 可以通过Feign调用，或者通过消息队列异步处理

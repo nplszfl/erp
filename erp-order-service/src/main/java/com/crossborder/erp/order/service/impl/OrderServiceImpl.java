@@ -1,24 +1,20 @@
 package com.crossborder.erp.order.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.crossborder.erp.order.entity.Order;
 import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.order.mapper.OrderMapper;
 import com.crossborder.erp.order.mapper.OrderItemMapper;
 import com.crossborder.erp.order.service.OrderService;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 订单服务实现
+ * 订单服务实现（带监控）
  */
 @Slf4j
 @Service
@@ -28,6 +24,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private final OrderItemMapper orderItemMapper;
 
     @Override
+    @Timed(value = "order.create", description = "创建订单", histogram = true)
     @Transactional(rollbackFor = Exception.class)
     public Long createOrder(Order order, List<OrderItem> orderItems) {
         log.info("创建订单, 平台订单号: {}", order.getPlatformOrderNo());
@@ -50,11 +47,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
+    @Timed(value = "order.getById", description = "根据ID查询订单")
     public Order getOrderById(Long orderId) {
         return getById(orderId);
     }
 
     @Override
+    @Timed(value = "order.getByPlatformOrderNo", description = "根据平台订单号查询")
     public Order getOrderByPlatformOrderNo(String platform, String platformOrderNo) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Order::getPlatform, platform)
@@ -63,6 +62,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
+    @Timed(value = "order.updateStatus", description = "更新订单状态")
     @Transactional(rollbackFor = Exception.class)
     public void updateOrderStatus(Long orderId, String status) {
         log.info("更新订单状态, orderId: {}, status: {}", orderId, status);
@@ -74,6 +74,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
+    @Timed(value = "order.updateShippingInfo", description = "更新物流信息")
     @Transactional(rollbackFor = Exception.class)
     public void updateShippingInfo(Long orderId, String trackingNumber, String logisticsCompany) {
         log.info("更新订单物流信息, orderId: {}, trackingNumber: {}", orderId, trackingNumber);
@@ -88,8 +89,10 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
+    @Timed(value = "order.pageOrders", description = "分页查询订单")
     public IPage<Order> pageOrders(Page<Order> page, String platform, String status,
-                                   LocalDateTime startTime, LocalDateTime endTime) {
+                                   LocalDateTime startTime,
+                                   LocalDateTime endTime) {
         LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<>();
 
         if (platform != null) {
@@ -111,6 +114,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
+    @Timed(value(value = "order.getOrderItems", description = "查询订单商品")
     public List<OrderItem> getOrderItems(Long orderId) {
         LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderItem::getOrderId, orderId);
