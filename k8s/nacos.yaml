@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nacos-config
+  namespace: erp
+data:
+  MODE: "standalone"
+  MYSQL_SERVICE_HOST: "mysql-service"
+  MYSQL_SERVICE_PORT: "3306"
+  MYSQL_SERVICE_DB_NAME: "nacos"
+  MYSQL_SERVICE_USER: "root"
+  MYSQL_SERVICE_PASSWORD: "root"
+  JVM_XMS: "512m"
+  JVM_XMX: "512m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nacos
+  namespace: erp
+  labels:
+    app: nacos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nacos
+  template:
+    metadata:
+      labels:
+        app: nacos
+    spec:
+      containers:
+      - name: nacos
+        image: nacos/nacos-server:v2.4.0
+        ports:
+        - containerPort: 8848
+          name: http
+        - containerPort: 9848
+          name: raft
+        envFrom:
+        - configMapRef:
+            name: nacos-config
+        volumeMounts:
+        - name: nacos-data
+          mountPath: /home/nacos/data
+        - name: nacos-logs
+          mountPath: /home/nacos/logs
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /nacos/v1/console/health/readiness
+            port: 8848
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /nacos/v1/console/health/readiness
+            port: 8848
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      - name: nacos-data
+        persistentVolumeClaim:
+          claimName: nacos-pvc
+      - name: nacos-logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nacos-service
+  namespace: erp
+  labels:
+    app: nacos
+spec:
+  ports:
+  - port: 8848
+    targetPort: 8848
+    name: http
+  - port: 9848
+    targetPort: 9848
+    name: raft
+  selector:
+    app: nacos
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nacos-pvc
+
+  namespace: erp
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
