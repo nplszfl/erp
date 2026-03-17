@@ -42,6 +42,7 @@
         <module>erp-inventory-service</module>
         <module>erp-warehouse-service</module>
         <module>erp-finance-service</module>
+        <module>erp-pricing-service</module>
     </modules>
 
     <dependencyManagement>

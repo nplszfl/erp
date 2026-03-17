@@ -1,0 +1,138 @@
+-- 智能定价服务数据库初始化脚本
+-- 版本: v1.5.0
+-- 作者: 火球鼠
+-- 创建时间: 2026-03-17
+
+-- 创建数据库（如果不存在）
+CREATE DATABASE IF NOT EXISTS erp_pricing_db
+DEFAULT CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE erp_pricing_db;
+
+-- 产品表
+CREATE TABLE IF NOT EXISTS product (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '产品ID',
+    product_code VARCHAR(50) NOT NULL COMMENT UNIQUE '产品编码',
+    product_name VARCHAR(200) NOT NULL COMMENT '产品名称',
+    cost_price DECIMAL(10,2) NOT NULL COMMENT '成本价',
+    selling_price DECIMAL(10,2) NOT NULL COMMENT '当前售价',
+    sku VARCHAR(100) COMMENT 'SKU',
+    platform_id BIGINT COMMENT '平台ID',
+    platform_product_id VARCHAR(100) COMMENT '平台产品ID',
+    status TINYINT DEFAULT 1 COMMENT '状态（1-上架，0-下架）',
+    target_profit_margin DECIMAL(5,2) DEFAULT 20.00 COMMENT '目标利润率（%）',
+    enable_competitor_analysis TINYINT DEFAULT 1 COMMENT '启用竞品分析',
+    enable_seasonal_adjustment TINYINT DEFAULT 1 COMMENT '启用季节性调整',
+    enable_inventory_adjustment TINYINT DEFAULT 1 COMMENT '启用库存调整',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_product_code (product_code),
+    INDEX idx_platform_id (platform_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='产品表';
+
+-- 竞品表
+CREATE TABLE IF NOT EXISTS competitor_product (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '竞品ID',
+    product_id BIGINT NOT NULL COMMENT '关联产品ID',
+    competitor_name VARCHAR(200) NOT NULL COMMENT '竞品名称',
+    price DECIMAL(10,2) NOT NULL COMMENT '竞品价格',
+    product_url VARCHAR(500) COMMENT '竞品URL',
+    platform VARCHAR(50) NOT NULL COMMENT '平台（Amazon、eBay、Shopee等）',
+    rating DECIMAL(3,2) COMMENT '评分（1-5）',
+    review_count BIGINT DEFAULT 0 COMMENT '评论数',
+    sales_volume BIGINT DEFAULT 0 COMMENT '销量',
+    scrape_time DATETIME COMMENT '抓取时间',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_product_id (product_id),
+    INDEX idx_platform (platform),
+    INDEX idx_scrape_time (scrape_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='竞品数据表';
+
+-- 价格历史表
+CREATE TABLE IF NOT EXISTS price_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '历史ID',
+    product_id BIGINT NOT NULL COMMENT '产品ID',
+    product_code VARCHAR(50) NOT NULL COMMENT '产品编码',
+    old_price DECIMAL(10,2) NOT NULL COMMENT '原价格',
+    new_price DECIMAL(10,2) NOT NULL COMMENT '新价格',
+    price_change_percent DECIMAL(10,2) COMMENT '价格变动（%）',
+    old_profit_margin DECIMAL(5,2) COMMENT '原利润率（%）',
+    new_profit_margin DECIMAL(5,2) COMMENT '新利润率（%）',
+    adjustment_reason TEXT COMMENT '调整原因',
+    adjustment_type VARCHAR(20) DEFAULT 'AUTO' COMMENT '调整方式（AUTO-自动，MANUAL-手动）',
+    operator VARCHAR(100) COMMENT '操作人',
+    competitor_avg_price DECIMAL(10,2) COMMENT '竞品平均价格',
+    seasonal_factor DECIMAL(5,4) COMMENT '季节性因子',
+    inventory_factor DECIMAL(5,4) COMMENT '库存因子',
+    demand_factor DECIMAL(5,4) COMMENT '需求因子',
+    pricing_strategy VARCHAR(100) COMMENT '定价策略',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_product_id (product_id),
+    INDEX idx_create_time (create_time),
+    INDEX idx_adjustment_type (adjustment_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='价格历史表';
+
+-- 定价任务表（用于定时任务记录）
+CREATE TABLE IF NOT EXISTS pricing_task (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '任务ID',
+    task_type VARCHAR(50) NOT NULL COMMENT '任务类型（COMPETITOR_SCRAPE、DYNAMIC_PRICING等）',
+    product_id BIGINT COMMENT '产品ID（NULL表示批量任务）',
+    status VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态（PENDING、RUNNING、SUCCESS、FAILED）',
+    start_time DATETIME COMMENT '开始时间',
+    end_time DATETIME COMMENT '结束时间',
+    duration_ms BIGINT COMMENT '耗时（毫秒）',
+    result_text TEXT COMMENT '结果描述',
+    error_message TEXT COMMENT '错误信息',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_task_type (task_type),
+    INDEX idx_status (status),
+    INDEX idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='定价任务表';
+
+-- AI定价建议表
+CREATE TABLE IF NOT EXISTS ai_pricing_suggestion (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '建议ID',
+    product_id BIGINT NOT NULL COMMENT '产品ID',
+    current_price DECIMAL(10,2) NOT NULL COMMENT '当前价格',
+    suggested_price DECIMAL(10,2) NOT NULL COMMENT '建议价格',
+    confidence_level DECIMAL(5,2) COMMENT '置信度（0-100）',
+    reason TEXT COMMENT '建议原因',
+    factors JSON COMMENT '影响因子（JSON格式）',
+    applied TINYINT DEFAULT 0 COMMENT '是否应用',
+    apply_time DATETIME COMMENT '应用时间',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_product_id (product_id),
+    INDEX idx_applied (applied),
+    INDEX idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI定价建议表';
+
+-- 插入示例数据
+INSERT INTO product (product_code, product_name, cost_price, selling_price, sku, target_profit_margin) VALUES
+('PROD-001', '无线蓝牙耳机', 80.00, 120.00, 'SKU-BLU-001', 30.00),
+('PROD-002', '智能手表', 150.00, 220.00, 'SKU-WAT-002', 25.00),
+('PROD-003', 'USB充电器', 20.00, 35.00, 'SKU-USB-003', 40.00),
+('PROD-004', '手机支架', 15.00, 28.00, 'SKU-STN-004', 45.00),
+('PROD-005', '便携充电宝', 60.00, 95.00, 'SKU-PWB-005', 35.00);
+
+-- 插入示例竞品数据
+INSERT INTO competitor_product (product_id, competitor_name, price, product_url, platform, rating, review_count, sales_volume) VALUES
+(1, 'Amazon竞品1', 125.00, 'https://amazon.com/dp/B001', 'Amazon', 4.5, 1250, 3500),
+(1, 'eBay竞品1', 118.00, 'https://ebay.com/itm/E001', 'eBay', 4.3, 890, 2100),
+(1, 'Shopee竞品1', 115.00, 'https://shopee.com/product/S001', 'Shopee', 4.6, 1580, 4200),
+(2, 'Amazon竞品2', 235.00, 'https://amazon.com/dp/B002', 'Amazon', 4.7, 2100, 5600),
+(2, 'eBay竞品2', 210.00, 'https://ebay.com/itm/E002', 'eBay', 4.4, 1320, 3800);
+
+-- 插入示例价格历史
+INSERT INTO price_history (product_id, product_code, old_price, new_price, price_change_percent, old_profit_margin, new_profit_margin, adjustment_reason, adjustment_type) VALUES
+(1, 'PROD-001', 118.00, 120.00, 1.69, 32.20, 33.33, '基于竞品分析上涨价格', 'AUTO'),
+(1, 'PROD-001', 120.00, 125.00, 4.17, 33.33, 36.00, '市场需求旺盛，适度涨价', 'AUTO'),
+(2, 'PROD-002', 218.00, 220.00, 0.92, 31.19, 31.82, '价格微调保持竞争力', 'AUTO');
+
+-- 查看数据
+SELECT '数据库初始化完成！' AS message;
+SELECT '产品数量' AS info, COUNT(*) AS value FROM product;
+SELECT '竞品数量' AS info, COUNT(*) AS value FROM competitor_product;
+SELECT '价格历史数量' AS info, COUNT(*) AS value FROM price_history;
