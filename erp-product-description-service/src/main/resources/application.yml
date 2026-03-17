@@ -1,0 +1,76 @@
+server:
+  port: 8091
+
+spring:
+  application:
+    name: erp-product-description-service
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 3
+      timeout: 3000
+
+# Swagger配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+# LLM API配置
+llm:
+  # OpenAI配置
+  openai:
+    enabled: false
+    api-key: ${OPENAI_API_KEY:}
+    base-url: https://api.openai.com/v1
+    model: gpt与其他
+    max-tress: 2000
+    temperature: 0.7
+
+  # DeepSeek配置
+  deepseek:
+    enabled: true
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: https://api.deepseek.com/v1
+    model: deepseek-chat
+    max-tokens: 2000
+    temperature: 0.7
+
+# 描述生成配置
+description:
+  # 模板配置
+  templates:
+    amazon:
+      name: Amazon产品模板
+      max-length: 2000
+    ebayer:
+      name: eBay产品模板
+      max-length: 1500
+    shopee:
+      name: Shopee产品模板
+      max-length: 2000
+    general:
+      name: 通用产品模板
+      max-length: 2500
+
+  # SEO配置
+  seo:
+    enabled: true
+    auto-optimize: true
+    keyword-density-threshold: 2.0
+    readability-target: 70
+
+  # A/B测试配置
+  ab-test:
+    enabled: true
+    max-versions: 3
+    auto-select-best: false
+
+# 应用配置
+app:
+  name: 产品描述生成服务
+  version: 1.5.0
+  author: 火球鼠
