@@ -1,0 +1,284 @@
+version: '3.8'
+
+# OmniTrade ERP - 完整部署配置
+# 包含：基础设施 + 13 个应用服务
+# 适用于 Docker Desktop
+
+services:
+  # ========== 基础设施 (3个) ==========
+  
+  mysql:
+    image: mysql:8.0
+    container_name: erp-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: erp
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: erp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  nacos:
+    image: nacos/nacos-server:v2.4.0
+    container_name: erp-nacos
+    environment:
+      MODE: standalone
+      MYSQL_SERVICE_HOST: mysql
+      MYSQL_SERVICE_DB_NAME: erp
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: root
+      PREFER_HOST_MODE: hostname
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      TZ: Asia/Shanghai
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - nacos-data:/home/nacos/data
+    networks:
+      - erp-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+
+  # ========== 核心微服务 (8个) ==========
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: erp-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC"
+    networks:
+      - erp-network
+    depends_on:
+      nacos:
+        condition: service_healthy
+
+  user-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  product-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-product-service
+    ports:
+      - "8082:8082"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  order-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-order-service
+    ports:
+      - "8083:8083"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  platform-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-platform-service
+    ports:
+      - "8084:8084"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-inventory-service
+    ports:
+      - "8085:8085"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  warehouse-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-warehouse-service
+    ports:
+      - "8086:8086"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  finance-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.order
+    container_name: erp-finance-service
+    ports:
+      - "8087:8087"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  # ========== AI 智能服务 (4个) ==========
+
+  pricing-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pricing
+    container_name: erp-pricing-service
+    ports:
+      - "8088:8088"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  inventory-prediction-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.inventory-prediction
+    container_name: erp-inventory-prediction-service
+    ports:
+      - "8089:8089"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  ai-assistant-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ai-assistant
+    container_name: erp-ai-assistant-service
+    ports:
+      - "8090:8090"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  product-description-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.product-description
+    container_name: erp-product-description-service
+    ports:
+      - "8091:8091"
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - erp-network
+
+  # ========== 前端 (1个) ==========
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp-frontend
+    ports:
+      - "80:80"
+    networks:
+      - erp-network
+    depends_on:
+      - gateway
+
+volumes:
+  mysql-data:
+  redis-data:
+  nacos-data:
+
+networks:
+  erp-network:
+    driver: bridge
