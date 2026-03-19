@@ -303,6 +303,14 @@ public class AIAssistantServiceImpl implements AIAssistantService {
         k3.setAnswer("如果产品有质量问题，请在收到货7天内申请售后，我们会安排退换货。");
         k3.setLanguage("zh");
         k3.setTags(Arrays.asList("售后", "质量"));
+        addKnowledge(k3);
+
+        Knowledge k4 = new Knowledge();
+        k4.setCategory("退货");
+        k4.setQuestion("如何申请退货？");
+        k4.setAnswer("您可以在订单详情页申请退货退款，填写退货原因后，我们会安排快递上门取件。");
+        k4.setLanguage("zh");
+        k4.setTags(Arrays.asList("退货", "退款", "售后"));
         addKnowledge(k4);
 
         log.info("知识库初始化完成 - 知识条目数: {}", knowledgeBase.size());
