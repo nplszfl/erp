@@ -19,25 +19,24 @@ springdoc:
     path: /swagger-ui.html
     enabled: true
 
-# LLM API配置
+# LLM API配置（统一配置，支持DeepSeek/OpenAI/Azure）
 llm:
-  # OpenAI配置
-  openai:
-    enabled: false
-    api-key: ${OPENAI_API_KEY:}
-    base-url: https://api.openai.com/v1
-    model: gpt-4
-    max-tokens: 2000
-    temperature: 0.7
-
-  # DeepSeek配置
-  deepseek:
-    enabled: true
-    api-key: ${DEEPSEEK_API_KEY:}
-    base-url: https://api.deepseek.com/v1
-    model: deepseek-chat
-    max-tokens: 2000
-    temperature: 0.7
+  # 是否启用真实API调用（配置API Key后设为true）
+  enabled: ${LLM_ENABLED:false}
+  # API Key（支持环境变量：LLM_API_KEY / DEEPSEEK_API_KEY / OPENAI_API_KEY）
+  api-key: ${LLM_API_KEY:${DEEPSEEK_API_KEY:${OPENAI_API_KEY:}}}
+  # API Base URL
+  base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}
+  # 模型名称
+  model: ${LLM_MODEL:deepseek-chat}
+  # 请求超时（毫秒）
+  timeout: ${LLM_TIMEOUT:30000}
+  # 最大Token数
+  max-tokens: ${LLM_MAX_TOKENS:2000}
+  # Temperature
+  temperature: ${LLM_TEMPERATURE:0.7}
+  # Provider: deepseek, openai, azure
+  provider: ${LLM_PROVIDER:deepseek}
 
 # RAG配置
 rag:

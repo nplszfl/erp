@@ -1,12 +1,19 @@
 package com.crossborder.aiassistant.service.impl;
 
+import com.crossborder.aiassistant.config.LLMConfig;
 import com.crossborder.aiassistant.dto.ChatRequest;
 import com.crossborder.aiassistant.dto.ChatResponse;
 import com.crossborder.aiassistant.service.AIAssistantService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-
+import org.springframework.web.client.RestTemplate;
 import reactor.core.publisher.Flux;
+
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +33,11 @@ public class AIAssistantServiceImpl implements AIAssistantService {
 
     // 模拟知识库
     private final List<Knowledge> knowledgeBase = new ArrayList<>();
+
+    @Autowired
+    private LLMConfig llmConfig;
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     public AIAssistantServiceImpl() {
         // 初始化知识库
@@ -366,27 +378,112 @@ public class AIAssistantServiceImpl implements AIAssistantService {
     }
 
     /**
-     * 调用LLM API（模拟）
+     * 调用LLM API
+     * 优先使用真实API（当配置了API Key时），否则使用模拟回复
      */
     private String callLLMAPI(String prompt, ChatRequest request) {
-        // TODO: 实际应该调用OpenAI/DeepSeek API
-        // 这里使用模拟的智能回复
+        // 检查是否配置了真实的LLM API
+        if (llmConfig.isConfigured()) {
+            try {
+                log.info("调用真实LLM API - Provider: {}, Model: {}", 
+                        llmConfig.getProvider(), llmConfig.getModel());
+                return callRealLLMAPI(prompt, request);
+            } catch (Exception e) {
+                log.error("LLM API调用失败， fallback到模拟回复", e);
+                return callMockLLMAPI(request);
+            }
+        } else {
+            log.info("未配置LLM API，使用模拟回复");
+            return callMockLLMAPI(request);
+        }
+    }
 
+    /**
+     * 调用真实LLM API（DeepSeek/OpenAI/Azure OpenAI）
+     */
+    private String callRealLLMAPI(String prompt, ChatRequest request) {
+        String apiUrl = llmConfig.getBaseUrl() + "/v1/chat/completions";
+        
+        // 构建请求体
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", llmConfig.getModel());
+        
+        List<Map<String, String>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", getSystemPrompt(request)));
+        messages.add(Map.of("role", "user", "content", prompt));
+        requestBody.put("messages", messages);
+        
+        Map<String, Object> params = new HashMap<>();
+        params.put("temperature", llmConfig.getTemperature());
+        params.put("max_tokens", llmConfig.getMaxTokens());
+        requestBody.putAll(params);
+        
+        // 设置请求头
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(llmConfig.getApiKey());
+        
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    apiUrl,
+                    HttpMethod.POST,
+                    entity,
+                    Map.class
+            );
+            
+            if (response.getBody() != null) {
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) response.getBody().get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                    return (String) message.get("content");
+                }
+            }
+            throw new RuntimeException("LLM API响应格式错误");
+        } catch (Exception e) {
+            log.error("LLM API调用失败: {}", e.getMessage());
+            throw new RuntimeException("LLM API调用失败", e);
+        }
+    }
+
+    /**
+     * 获取系统提示词
+     */
+    private String getSystemPrompt(ChatRequest request) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是OmniTrade跨境电商ERP系统的AI客服助手火球鼠。\n");
+        prompt.append("你的职责是帮助用户解决关于订单管理、商品管理、库存管理、财务管理等问题。\n");
+        prompt.append("请用").append(request.getLanguage() != null ? request.getLanguage() : "中文").append("回复。\n");
+        prompt.append("回复要简洁、专业、有帮助。\n");
+        prompt.append("如果用户问的问题与ERP系统无关，请礼貌地引导回主题。\n");
+        return prompt.toString();
+    }
+
+    /**
+     * 模拟LLM回复（当未配置API Key时使用）
+     */
+    private String callMockLLMAPI(ChatRequest request) {
         String message = request.getMessage().toLowerCase();
 
-        // 模拟智能回复
         if (message.contains("订单") || message.contains("order")) {
             return "您可以在「我的订单」页面查看所有订单信息。如果需要帮助，请提供订单号，我会帮您查询详细状态。";
         } else if (message.contains("价格") || message.contains("price")) {
             return "产品价格会根据市场情况动态调整。您可以在产品详情页查看当前价格和历史价格趋势。";
-        } else if (message.contains("物流") || message.contains("shipping")) {
+        } else if (message.contains("物流") || message.contains("shipping") || message.contains("快递")) {
             return "订单发货后，您可以在订单详情页查看物流信息。我们会提供物流单号和实时追踪链接。";
         } else if (message.contains("库存") || message.contains("stock")) {
-            return "我们的库存系统会自动预测销量并生成补货建议。大部分商品都有充足的库存保障。";
-        } else if (message.contains("你好") || message.contains("hello")) {
-            return "您好！我是火球鼠AI助手，很高兴为您服务。请问有什么我可以帮助您的？";
+            return "我们的库存系统有智能预测功能，会根据历史销量自动生成补货建议。库存预警会提前通知您。";
+        } else if (message.contains("退款") || message.contains("退货")) {
+            return "退款退货可以在订单详情页申请，财务部门会在1-3个工作日内处理完成。";
+        } else if (message.contains("你好") || message.contains("hello") || message.contains("hi")) {
+            return "您好！我是火球鼠🔥 您的AI助手，很高兴为您服务！请问有什么可以帮到您的？";
+        } else if (message.contains("谢谢") || message.contains("感谢")) {
+            return "不客气！很高兴能帮到您！如有其他问题随时问我哦～";
+        } else if (message.contains("再见") || message.contains("拜拜")) {
+            return "再见！祝您生意兴隆！🔥 有需要随时找我！";
         } else {
-            return "收到您的问题，我正在处理中。这是一个基于v1.5.0 AI优先战略的智能ERP系统，我会尽力为您提供最好的服务。";
+            return "收到您的问题！我是基于OmniTrade ERP v1.5.0的AI助手，我可以帮您解答关于订单、库存、价格、物流等问题。请告诉我具体想了解什么？";
         }
     }
 
