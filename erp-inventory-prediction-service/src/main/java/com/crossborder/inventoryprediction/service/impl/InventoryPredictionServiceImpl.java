@@ -3,6 +3,7 @@ package com.crossborder.inventoryprediction.service.impl;
 import com.crossborder.inventoryprediction.dto.PredictionRequest;
 import com.crossborder.inventoryprediction.dto.PredictionResponse;
 import com.crossborder.inventoryprediction.dto.ReplenishmentSuggestion;
+import com.crossborder.inventoryprediction.dto.ServiceStatistics;
 import com.crossborder.inventoryprediction.service.InventoryPredictionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,11 @@ import java.util.Random;
 public class InventoryPredictionServiceImpl implements InventoryPredictionService {
 
     private final Random random = new Random();
+
+    // 服务统计
+    private final ServiceStatistics statistics = new ServiceStatistics();
+    private long predictionTimeSum = 0;
+    private long predictionTimeCount = 0;
 
     @Override
     public PredictionResponse predictSales(PredictionRequest request) {
@@ -413,5 +419,77 @@ public class InventoryPredictionServiceImpl implements InventoryPredictionServic
         }
 
         return String.join("，", risks);
+    }
+
+    // ========== 统计方法 ==========
+
+    @Override
+    public ServiceStatistics getStatistics() {
+        log.info("获取服务统计信息");
+
+        if (predictionTimeCount > 0) {
+            statistics.setAvgPredictionTime((double) predictionTimeSum / predictionTimeCount);
+        }
+
+        statistics.setStatisticsTime(LocalDateTime.now());
+        return statistics;
+    }
+
+    @Override
+    public void resetStatistics() {
+        log.info("重置统计数据");
+        statistics.setTotalPredictions(0);
+        statistics.setSuccessfulPredictions(0);
+        statistics.setFailedPredictions(0);
+        statistics.setReplenishmentSuggestions(0);
+        statistics.setLowStockWarnings(0);
+        statistics.setAvgPredictionTime(0);
+        statistics.getRecentErrors().clear();
+        predictionTimeSum = 0;
+        predictionTimeCount = 0;
+    }
+
+    /**
+     * 记录预测开始
+     */
+    private void recordPredictionStart() {
+        statistics.setTotalPredictions(statistics.getTotalPredictions() + 1);
+    }
+
+    /**
+     * 记录预测成功
+     */
+    private void recordPredictionSuccess(long predictionTime) {
+        statistics.setSuccessfulPredictions(statistics.getSuccessfulPredictions() + 1);
+        predictionTimeSum += predictionTime;
+        predictionTimeCount++;
+
+        if (statistics.getAvgPredictionTime() == 0 || predictionTime < statistics.getAvgPredictionTime()) {
+            // 更新最小时间
+        }
+    }
+
+    /**
+     * 记录预测失败
+     */
+    private void recordPredictionFailure(String error) {
+        statistics.setFailedPredictions(statistics.getFailedPredictions() + 1);
+        if (statistics.getRecentErrors().size() < 10) {
+            statistics.getRecentErrors().add(LocalDateTime.now() + ": " + error);
+        }
+    }
+
+    /**
+     * 记录补货建议生成
+     */
+    private void recordReplenishmentSuggestion() {
+        statistics.setReplenishmentSuggestions(statistics.getReplenishmentSuggestions() + 1);
+    }
+
+    /**
+     * 记录库存预警
+     */
+    private void recordLowStockWarning() {
+        statistics.setLowStockWarnings(statistics.getLowStockWarnings() + 1);
     }
 }

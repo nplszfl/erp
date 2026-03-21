@@ -3,6 +3,7 @@ package com.crossborder.inventoryprediction.service;
 import com.crossborder.inventoryprediction.dto.PredictionRequest;
 import com.crossborder.inventoryprediction.dto.PredictionResponse;
 import com.crossborder.inventoryprediction.dto.ReplenishmentSuggestion;
+import com.crossborder.inventoryprediction.dto.ServiceStatistics;
 
 import java.util.List;
 
@@ -70,4 +71,16 @@ public interface InventoryPredictionService {
      * 基于周转率和需求，优化库存配置
      */
     void optimizeInventoryStructure();
+
+    /**
+     * 获取服务统计信息
+     *
+     * @return 服务统计数据
+     */
+    ServiceStatistics getStatistics();
+
+    /**
+     * 重置统计数据
+     */
+    void resetStatistics();
 }
