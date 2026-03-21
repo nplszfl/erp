@@ -165,6 +165,13 @@
                 <version>${okhttp.version}</version>
             </dependency>
 
+            <!-- Micrometer Prometheus -->
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-registry-prometheus</artifactId>
+                <version>1.12.2</version>
+            </dependency>
+
             <!-- 内部模块 -->
             <dependency>
                 <groupId>com.crossborder</groupId>

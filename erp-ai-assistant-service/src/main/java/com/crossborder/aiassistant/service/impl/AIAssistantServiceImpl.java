@@ -3,12 +3,14 @@ package com.crossborder.aiassistant.service.impl;
 import com.crossborder.aiassistant.config.LLMConfig;
 import com.crossborder.aiassistant.dto.ChatRequest;
 import com.crossborder.aiassistant.dto.ChatResponse;
+import com.crossborder.aiassistant.dto.ServiceStatistics;
 import com.crossborder.aiassistant.service.AIAssistantService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -39,6 +41,11 @@ public class AIAssistantServiceImpl implements AIAssistantService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    // 服务统计
+    private final ServiceStatistics statistics = new ServiceStatistics();
+    private long responseTimeSum = 0;
+    private long responseTimeCount = 0;
+
     public AIAssistantServiceImpl() {
         // 初始化知识库
         initKnowledgeBase();
@@ -48,6 +55,9 @@ public class AIAssistantServiceImpl implements AIAssistantService {
     public ChatResponse chat(ChatRequest request) {
         log.info("AI对话 - 用户ID: {}, 会话ID: {}, 消息: {}", 
                 request.getUserId(), request.getSessionId(), request.getMessage());
+
+        // 记录对话开始
+        recordConversationStart();
 
         long startTime = System.currentTimeMillis();
 
@@ -65,6 +75,7 @@ public class AIAssistantServiceImpl implements AIAssistantService {
             if (Boolean.TRUE.equals(request.getUseRAG())) {
                 retrievedChunks = retrieveKnowledge(request.getMessage(), 3);
                 response.setRetrievedChunks(retrievedChunks);
+                recordRAGRetrieval();
             }
 
             // 2. 构建提示词
@@ -82,20 +93,28 @@ public class AIAssistantServiceImpl implements AIAssistantService {
 
             // 5. Token使用统计
             ChatResponse.TokenUsage usage = new ChatResponse.TokenUsage();
-            usage.setPromptTokens(prompt.length() / 4); // 估算
-            usage.setCompletionTokens(aiResponse.length() / 4);
-            usage.setTotalTokens(usage.getPromptTokens() + usage.getCompletionTokens());
+            int promptTokens = prompt.length() / 4;
+            int completionTokens = aiResponse.length() / 4;
+            usage.setPromptTokens(promptTokens);
+            usage.setCompletionTokens(completionTokens);
+            usage.setTotalTokens(promptTokens + completionTokens);
             response.setUsage(usage);
+            recordTokens(usage.getTotalTokens());
 
             // 6. 响应时间
-            response.setResponseTime(System.currentTimeMillis() - startTime);
+            long responseTime = System.currentTimeMillis() - startTime;
+            response.setResponseTime(responseTime);
 
-            log.info("AI对话完成 - 响应时间: {}ms", response.getResponseTime());
+            // 记录成功
+            recordSuccess(responseTime);
+
+            log.info("AI对话完成 - 响应时间: {}ms", responseTime);
 
         } catch (Exception e) {
             log.error("AI对话失败", e);
             response.setContent("抱歉，我现在无法回答这个问题。请稍后再试。");
             response.setError(e.getMessage());
+            recordFailure(e.getMessage());
         }
 
         return response;
@@ -557,5 +576,111 @@ public class AIAssistantServiceImpl implements AIAssistantService {
         }
 
         return entities;
+    }
+
+    // ========== 统计方法 ==========
+
+    @Override
+    public ServiceStatistics getStatistics() {
+        log.info("获取服务统计信息");
+
+        statistics.setTotalConversations(statistics.getTotalConversations());
+        statistics.setKnowledgeBaseSize(knowledgeBase.size());
+        statistics.setActiveSessions(sessionHistory.size());
+
+        // 计算平均响应时间
+        if (responseTimeCount > 0) {
+            statistics.setAvgResponseTime((double) responseTimeSum / responseTimeCount);
+        }
+
+        // 统计活跃用户
+        Set<Long> uniqueUsers = new HashSet<>();
+        for (List<ChatMessage> messages : sessionHistory.values()) {
+            for (ChatMessage msg : messages) {
+                if (msg.getUserId() != null) {
+                    uniqueUsers.add(msg.getUserId());
+                }
+            }
+        }
+        statistics.setActiveUsers(uniqueUsers.size());
+
+        statistics.setStatisticsTime(LocalDateTime.now());
+
+        return statistics;
+    }
+
+    @Override
+    public void resetStatistics() {
+        log.info("重置统计数据");
+        statistics.setTotalConversations(0);
+        statistics.setSuccessfulConversations(0);
+        statistics.setFailedConversations(0);
+        statistics.setLlmApiCalls(0);
+        statistics.setMockResponses(0);
+        statistics.setTotalTokens(0);
+        statistics.setAvgResponseTime(0);
+        statistics.setMaxResponseTime(0);
+        statistics.setMinResponseTime(0);
+        statistics.setRagRetrievals(0);
+        statistics.getRecentErrors().clear();
+        responseTimeSum = 0;
+        responseTimeCount = 0;
+    }
+
+    /**
+     * 记录对话开始
+     */
+    private void recordConversationStart() {
+        statistics.setTotalConversations(statistics.getTotalConversations() + 1);
+    }
+
+    /**
+     * 记录成功响应
+     */
+    private void recordSuccess(long responseTime) {
+        statistics.setSuccessfulConversations(statistics.getSuccessfulConversations() + 1);
+        responseTimeSum += responseTime;
+        responseTimeCount++;
+
+        if (responseTime > statistics.getMaxResponseTime()) {
+            statistics.setMaxResponseTime(responseTime);
+        }
+        if (statistics.getMinResponseTime() == 0 || responseTime < statistics.getMinResponseTime()) {
+            statistics.setMinResponseTime(responseTime);
+        }
+    }
+
+    /**
+     * 记录失败
+     */
+    private void recordFailure(String error) {
+        statistics.setFailedConversations(statistics.getFailedConversations() + 1);
+        if (statistics.getRecentErrors().size() < 10) {
+            statistics.getRecentErrors().add(LocalDateTime.now() + ": " + error);
+        }
+    }
+
+    /**
+     * 记录LLM API调用
+     */
+    private void recordLLMCall(boolean success) {
+        statistics.setLlmApiCalls(statistics.getLlmApiCalls() + 1);
+        if (!success) {
+            statistics.setMockResponses(statistics.getMockResponses() + 1);
+        }
+    }
+
+    /**
+     * 记录Token使用
+     */
+    private void recordTokens(int tokens) {
+        statistics.setTotalTokens(statistics.getTotalTokens() + tokens);
+    }
+
+    /**
+     * 记录RAG检索
+     */
+    private void recordRAGRetrieval() {
+        statistics.setRagRetrievals(statistics.getRagRetrievals() + 1);
     }
 }

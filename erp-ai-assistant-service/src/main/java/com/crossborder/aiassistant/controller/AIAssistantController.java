@@ -2,6 +2,7 @@ package com.crossborder.aiassistant.controller;
 
 import com.crossborder.aiassistant.dto.ChatRequest;
 import com.crossborder.aiassistant.dto.ChatResponse;
+import com.crossborder.aiassistant.dto.ServiceStatistics;
 import com.crossborder.aiassistant.service.AIAssistantService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -90,5 +91,18 @@ public class AIAssistantController {
     @GetMapping("/health")
     public String health() {
         return "AI智能客服服务运行中！🔥";
+    }
+
+    @Operation(summary = "获取服务统计")
+    @GetMapping("/statistics")
+    public ServiceStatistics getStatistics() {
+        return aiAssistantService.getStatistics();
+    }
+
+    @Operation(summary = "重置统计数据")
+    @PostMapping("/statistics/reset")
+    public String resetStatistics() {
+        aiAssistantService.resetStatistics();
+        return "统计数据已重置！";
     }
 }

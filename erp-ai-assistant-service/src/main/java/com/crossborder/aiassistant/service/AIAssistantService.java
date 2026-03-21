@@ -2,6 +2,7 @@ package com.crossborder.aiassistant.service;
 
 import com.crossborder.aiassistant.dto.ChatRequest;
 import com.crossborder.aiassistant.dto.ChatResponse;
+import com.crossborder.aiassistant.dto.ServiceStatistics;
 
 import reactor.core.publisher.Flux;
 
@@ -93,6 +94,18 @@ public interface AIAssistantService {
     List<Knowledge> searchKnowledge(String query, int topK);
 
     /**
+     * 获取服务统计信息
+     *
+     * @return 服务统计数据
+     */
+    ServiceStatistics getStatistics();
+
+    /**
+     * 重置统计数据
+     */
+    void resetStatistics();
+
+    /**
      * 对话消息
      */
     class ChatMessage {
@@ -180,7 +193,7 @@ public interface AIAssistantService {
         public void setId(Long id) { this.id = id; }
 
         public String getCategory() { return category; }
-        public void setCategory(String) category) { this.category = category; }
+        public void setCategory(String category) { this.category = category; }
 
         public String getQuestion() { return question; }
         public void setQuestion(String question) { this.question = question; }
