@@ -12,17 +12,26 @@ import java.time.LocalDateTime;
  * 竞品数据实体
  */
 @Data
-@TableName("competitor_product")
+@TableName("t_competitor_product")
 public class CompetitorProduct {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 产品ID */
+    private Long productId;
+
     /** 竞品名称 */
     private String competitorName;
 
-    /** 竞品价格 */
-    private BigDecimal price;
+    /** 当前价格 */
+    private BigDecimal currentPrice;
+
+    /** 历史低价 */
+    private BigDecimal lowestPrice;
+
+    /** 历史高价 */
+    private BigDecimal highestPrice;
 
     /** 竞品URL */
     private String productUrl;

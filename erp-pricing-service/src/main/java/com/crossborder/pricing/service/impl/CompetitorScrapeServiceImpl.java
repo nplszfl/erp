@@ -103,7 +103,7 @@ public class CompetitorScrapeServiceImpl implements CompetitorScrapeService {
         BigDecimal max = null;
 
         for (CompetitorProduct competitor : competitors) {
-            BigDecimal price = competitor.getPrice();
+            BigDecimal price = competitor.getCurrentPrice();
             sum = sum.add(price);
 
             if (min == null || price.compareTo(min) < 0) {
@@ -160,7 +160,7 @@ public class CompetitorScrapeServiceImpl implements CompetitorScrapeService {
 
         // TODO: 保存到数据库
 
-        log.info("Amazon抓取完成 - 价格: {}, 评分: {}", competitor.getPrice(), competitor.getRating());
+        log.info("Amazon抓取完成 - 价格: {}, 评分: {}", competitor.getCurrentPrice(), competitor.getRating());
     }
 
     /**
@@ -184,7 +184,7 @@ public class CompetitorScrapeServiceImpl implements CompetitorScrapeService {
         Long salesVolume = 50L + random.nextInt(500);
 
         competitor.setCompetitorName(platform + " 竞品 " + random.nextInt(1000));
-        competitor.setPrice(price);
+        competitor.setCurrentPrice(price);
         competitor.setProductUrl(productUrl);
         competitor.setPlatform(platform);
         competitor.setRating(rating);
