@@ -189,15 +189,8 @@ public class InventoryPredictionServiceImpl implements InventoryPredictionServic
         suggestion.setReason(reason);
         suggestion.setNeedReplenishment(needReplenishment);
         suggestion.setExpectedArrivalDate(LocalDate.now().plusDays(7));
-        suggestion.setPredictionAccuracy(prediction.getAccuracy());
-
-        // 5. 风险评估
-        ReplenishmentSuggestion.RiskAssessment risk = new ReplenishmentSuggestion.RiskAssessment();
-        risk.setStockoutRisk(calculateStockoutRisk(currentStock, predictedDemand, safetyStock));
-        risk.setOverstockRisk(calculateOverstockRisk(currentStock, predictedDemand));
-        risk.setRiskLevel(determineRiskLevel(risk.getStockoutRisk()));
-        risk.setRiskDescription(generateRiskDescription(risk.getStockoutRisk(), risk.getOverstockRisk()));
-        suggestion.setRiskAssessment(risk);
+        suggestion.setPredictionAccuracy(prediction.getAccuracy() != null 
+            ? BigDecimal.valueOf(prediction.getAccuracy()) : null);
 
         log.info("补货建议生成完成 - 产品ID: {}, 建议数量: {}, 紧急程度: {}",
                 productId, suggestedQuantity, urgency);
