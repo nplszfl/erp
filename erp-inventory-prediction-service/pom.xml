@@ -6,10 +6,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
-        <relativePath/>
+        <groupId>com.crossborder</groupId>
+        <artifactId>cross-border-erp</artifactId>
+        <version>1.0.0</version>
     </parent>
 
     <groupId>com.crossborder</groupId>

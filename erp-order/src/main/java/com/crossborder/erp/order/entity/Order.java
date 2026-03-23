@@ -62,8 +62,9 @@ public class Order {
 
     /**
      * 买家手机号
-     @TableField("buyer_phone")
-     private String buyerPhone;
+     */
+    @TableField("buyer_phone")
+    private String buyerPhone;
 
     /**
      * 订单金额（订单总金额）
@@ -210,7 +211,7 @@ public class Order {
     /**
      * 更新时间
      */
-    @TableTable(fill = FieldFill.INSERT_UPDATE)
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
     /**

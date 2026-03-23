@@ -11,6 +11,7 @@ import com.crossborder.erp.platform.config.ShopeeConfig;
 import com.crossborder.erp.platform.util.ShopeeApiSigner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 import okhttp3.*;
 
 import java.math.BigDecimal;
@@ -30,7 +31,11 @@ public class ShopeeOrderSync implements PlatformOrderSync {
     private final ShopeeConfig shopeeConfig;
     private final ShopeeApiSigner signer;
 
-    private final OkHttpClient httpClient = new OkHttpClient();
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build();
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -157,8 +162,8 @@ public class ShopeeOrderSync implements PlatformOrderSync {
         Map<String, String> params = new HashMap<>();
 
         // 时间范围（Unix时间戳）
-        long startTimestamp = startTime.toEpochSecond();
-        long endTimestamp = endTime.toEpochSecond();
+        long startTimestamp = startTime.toEpochSecond(java.time.ZoneOffset.UTC);
+        long endTimestamp = endTime.toEpochSecond(java.time.ZoneOffset.UTC);
 
         params.put("create_time_from", String.valueOf(startTimestamp));
         params.put("create_time_to", String.valueOf(endTimestamp));
@@ -190,9 +195,6 @@ public class ShopeeOrderSync implements PlatformOrderSync {
                 .url(urlBuilder.build())
                 .get()
                 .addHeader("Content-Type", "application/json");
-
-        // 设置超时
-        builder.timeout(30, java.util.concurrent.TimeUnit.SECONDS);
 
         Request request = builder.build();
         try (Response response = httpClient.newCall(request).execute()) {
@@ -252,13 +254,10 @@ public class ShopeeOrderSync implements PlatformOrderSync {
         order.setPlatformOrderNo(shopeeOrder.getString("order_sn"));
         order.setInternalOrderNo(generateInternalOrderNo());
 
-        // 买家信息
-        JSONObject buyerInfo = shopeeOrder.getJSONObject("buyer_user_cpf_id");
-        if (buyerInfo != null) {
-            order.setBuyerId(buyerInfo.getString("username"));
-            order.setBuyerEmail(shopeeOrder.getString("recipient_email_address"));
-            order.setBuyerPhone(shopeeOrder.getString("recipient_phone_number"));
-        }
+        // 买家信息 - 直接从字段获取
+        order.setBuyerId(shopeeOrder.getString("buyer_user_id"));
+        order.setBuyerEmail(shopeeOrder.getString("recipient_email_address"));
+        order.setBuyerPhone(shopeeOrder.getString("recipient_phone_number"));
 
         // 金额信息
         order.setOrderAmount(new BigDecimal(shopeeOrder.getString("total_amount")));
@@ -320,12 +319,24 @@ public class ShopeeOrderSync implements PlatformOrderSync {
         item.setPlatformProductId(String.valueOf(shopeeItem.getLong("item_id")));
         item.setPlatformSku(shopeeItem.getString("item_sku"));
         item.setProductName(shopeeItem.getString("item_name"));
-        item.setProductImage(shopeeItem.getString("item_image").getJSONObject("original").getString("url"));
+        
+        // 商品图片
+        JSONObject itemImage = shopeeItem.getJSONObject("item_image");
+        if (itemImage != null) {
+            JSONObject original = itemImage.getJSONObject("original");
+            if (original != null) {
+                item.setProductImage(original.getString("url"));
+            }
+        }
+        
+        // 单价和数量
         item.setUnitPrice(new BigDecimal(shopeeItem.getString("model_original_price")));
         item.setQuantity(shopeeItem.getInteger("model_quantity_purchased"));
 
         // 计算总金额
-        item.setTotalAmount(item.getUnitPrice().multiply(new BigDecimal(item.getQuantity())));
+        if (item.getUnitPrice() != null && item.getQuantity() != null) {
+            item.setTotalAmount(item.getUnitPrice().multiply(new BigDecimal(item.getQuantity())));
+        }
 
         return item;
     }

@@ -89,6 +89,13 @@
             <artifactId>erp-common</artifactId>
         </dependency>
 
+        <!-- Order Module -->
+        <dependency>
+            <groupId>com.crossborder</groupId>
+            <artifactId>erp-order</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Hutool -->
         <dependency>
             <groupId>cn.hutool</groupId>

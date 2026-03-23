@@ -30,7 +30,7 @@ public class CompetitorScrapeServiceImpl implements CompetitorScrapeService {
         log.info("开始抓取产品 {} 的竞品数据...", productId);
 
         // 模拟抓取多个平台的数据
-        scrapeListings scrapeAmazon(productId, "Amazon");
+        scrapeFromPlatform("Amazon", "https://amazon.com/product/" + productId);
         scrapeFromPlatform("eBay", "https://ebay.com/itm/" + productId);
         scrapeFromPlatform("Shopee", "https://shopee.com/product/" + productId);
         scrapeFromPlatform("Lazada", "https://lazada.com/products/" + productId);

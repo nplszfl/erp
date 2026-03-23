@@ -9,9 +9,10 @@ import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.platform.api.PlatformOrderSync;
 import com.crossborder.erp.platform.config.AmazonConfig;
 import com.crossborder.erp.platform.util.AmazonSPApiSigner;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,13 +28,22 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AmazonOrderSync implements PlatformOrderSync {
 
     private final AmazonConfig amazonConfig;
     private final AmazonSPApiSigner signer;
 
-    private final OkHttpClient httpClient = new OkHttpClient();
+    @Autowired
+    public AmazonOrderSync(AmazonConfig amazonConfig, AmazonSPApiSigner signer) {
+        this.amazonConfig = amazonConfig;
+        this.signer = signer;
+    }
+
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build();
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
@@ -205,9 +215,6 @@ public class AmazonOrderSync implements PlatformOrderSync {
             builder.addHeader(entry.getKey(), entry.getValue());
         }
 
-        // 设置超时
-        builder.timeout(30, java.util.concurrent.TimeUnit.SECONDS);
-
         Request request = builder.build();
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
@@ -266,7 +273,10 @@ public class AmazonOrderSync implements PlatformOrderSync {
         }
 
         // 金额信息
-        order.setOrderAmount(new BigDecimal(amazonOrder.getString("OrderTotal").get("Amount")));
+        JSONObject orderTotal = amazonOrder.getJSONObject("OrderTotal");
+        if (orderTotal != null) {
+            order.setOrderAmount(new BigDecimal(orderTotal.getString("Amount")));
+        }
 
         // 订单状态
         String amazonStatus = amazonOrder.getString("OrderStatus");
@@ -289,9 +299,8 @@ public class AmazonOrderSync implements PlatformOrderSync {
         }
 
         // 物流信息
-        JSONArray fulfillmentData = amazonOrder.getJSONArray("FulfillmentData");
-        if (fulfillmentData != null && fulfillmentData.size() > 0) {
-            JSONObject fulfillment = fulfillmentData.getJSONObject(0);
+        JSONObject fulfillmentData = amazonOrder.getJSONObject("FulfillmentData");
+        if (fulfillmentData != null) {
             order.setLogisticsCompany(fulfillmentData.getString("FulfillmentChannel"));
             order.setTrackingNumber(fulfillmentData.getString("TrackingNumber"));
         }
@@ -331,12 +340,28 @@ public class AmazonOrderSync implements PlatformOrderSync {
         item.setPlatformProductId(amazonItem.getString("ASIN"));
         item.setPlatformSku(amazonItem.getString("SellerSKU"));
         item.setProductName(amazonItem.getString("Title"));
-        item.setProductImage(amazonItem.getString("ProductInfo").getJSONObject("MainImage").getString("URL"));
-        item.setUnitPrice(new BigDecimal(amazonItem.getString("UnitPrice").get("Amount")));
+        
+        // 商品图片
+        JSONObject productInfo = amazonItem.getJSONObject("ProductInfo");
+        if (productInfo != null) {
+            JSONObject mainImage = productInfo.getJSONObject("MainImage");
+            if (mainImage != null) {
+                item.setProductImage(mainImage.getString("URL"));
+            }
+        }
+        
+        // 单价
+        JSONObject unitPrice = amazonItem.getJSONObject("UnitPrice");
+        if (unitPrice != null) {
+            item.setUnitPrice(new BigDecimal(unitPrice.getString("Amount")));
+        }
+        
         item.setQuantity(amazonItem.getInteger("QuantityOrdered"));
 
         // 计算总金额
-        item.setTotalAmount(item.getUnitPrice().multiply(new BigDecimal(item.getQuantity())));
+        if (item.getUnitPrice() != null && item.getQuantity() != null) {
+            item.setTotalAmount(item.getUnitPrice().multiply(new BigDecimal(item.getQuantity())));
+        }
 
         return item;
     }
@@ -349,7 +374,7 @@ public class AmazonOrderSync implements PlatformOrderSync {
             case "PendingAvailability":
             case "Pending":
                 return "pending_payment";
-            case case "Unshipped":
+            case "Unshipped":
             case "PartiallyShipped":
                 return "pending_shipment";
             case "Shipped":

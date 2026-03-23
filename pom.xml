@@ -35,7 +35,9 @@
     <modules>
         <module>erp-common</module>
         <module>erp-gateway</module>
+        <module>erp-order</module>
         <module>erp-order-service</module>
+        <module>erp-platform-api</module>
         <module>erp-platform-service</module>
         <module>erp-product-service</module>
         <module>erp-user-service</module>
@@ -95,27 +97,21 @@
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-starter-openfeign</artifactId>
-                <version>${spring-cloud.version}</version>
-            </dependency>
-
-            <!-- LoadBalancer -->
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+                <version>3.1.5</version>
             </dependency>
 
             <!-- Gateway -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-starter-gateway</artifactId>
-                <version>${spring-cloud.version}</version>
+                <version>4.1.1</version>
             </dependency>
 
             <!-- LoadBalancer -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-starter-loadbalancer</artifactId>
-                <version>${spring-cloud.version}</version>
+                <version>4.1.1</version>
             </dependency>
 
             <!-- MyBatis Plus -->
@@ -172,10 +168,34 @@
                 <version>1.12.2</version>
             </dependency>
 
+            <!-- Micrometer Core -->
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-core</artifactId>
+                <version>1.12.2</version>
+            </dependency>
+
+            <!-- SpringDoc OpenAPI -->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>2.3.0</version>
+            </dependency>
+
             <!-- 内部模块 -->
             <dependency>
                 <groupId>com.crossborder</groupId>
                 <artifactId>erp-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.crossborder</groupId>
+                <artifactId>erp-order</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.crossborder</groupId>
+                <artifactId>erp-platform-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

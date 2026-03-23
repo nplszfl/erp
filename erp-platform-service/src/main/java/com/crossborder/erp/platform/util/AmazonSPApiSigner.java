@@ -1,12 +1,5 @@
 package com.crossborder.erp.platform.util;
 
-import com.amazonaws.auth.AWS4Signer;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.http.HttpMethodName;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.model.Credentials;
-import com.amazonaws.util.BinaryUtils;
 import com.crossborder.erp.platform.config.AmazonConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +14,7 @@ import java.util.*;
 
 /**
  * 亚马逊SP-API签名工具类
+ * 使用AWS Signature Version 4签名
  */
 @Slf4j
 @Component
@@ -34,21 +28,26 @@ public class AmazonSPApiSigner {
      */
     public Map<String, String> signRequest(String uri, String method, String body) {
         try {
-            // 1. 获取临时凭证
-            Credentials credentials = getTemporaryCredentials();
-
-            // 2. 获取当前时间
+            // 1. 获取当前时间
             String datetime = getFormattedDatetime();
+            String dateStamp = datetime.substring(0, 8);
+
+            // 2. 使用静态凭证（用于开发环境）
+            String accessKeyId = amazonConfig.getAwsAccessKeyId();
+            String secretKey = amazonConfig.getAwsSecretKey();
+            String region = amazonConfig.getRegion();
 
             // 3. 计算签名
-            String signature = calculateSignature(uri, method, body, datetime, credentials);
+            String signature = calculateSignature(uri, method, body, datetime, dateStamp, accessKeyId, secretKey, region);
 
             // 4. 构建请求头
             Map<String, String> headers = new HashMap<>();
-            headers.put("x-amz-date", datetime.substring(0, 8));
-            headers.put("x-amz-security-token", credentials.getSessionToken());
-            headers.put("x-amz-access-key-id", credentials.getAccessKeyId());
-            headers.put("Authorization", "AWS4-HMAC-SHA256 Credential=" + buildCredentialString(datetime) + ",SignedHeaders=" + getSignedHeaders() + ",Signature=" + signature);
+            headers.put("x-amz-date", datetime);
+            headers.put("Content-Type", "application/json");
+            headers.put("Authorization", "AWS4-HMAC-SHA256 " +
+                    "Credential=" + accessKeyId + "/" + dateStamp + "/" + region + "/execute-api/aws4_request," +
+                    "SignedHeaders=content-type;host;x-amz-date," +
+                    "Signature=" + signature);
 
             return headers;
         } catch (Exception e) {
@@ -58,20 +57,7 @@ public class AmazonSPApiSigner {
     }
 
     /**
-     * 获取临时STS凭证
-     */
-    private Credentials getTemporaryCredentials() {
-        AWSSecurityTokenService sts = AWSSecurityTokenService.builder()
-                .withRoleArn(amazonConfig.getRoleArn())
-                .withRoleSessionName("sp-api-session-" + System.currentTimeMillis())
-                .withRegion(amazonConfig.getRegion())
-                .build();
-
-        return sts.newSessionCredentials();
-    }
-
-    /**
-     * 获取格式化的时间（YYYYMMDDTHHMMSSZ）
+     * 获取格式化的时间（YYYYMMDD'T'HHMMSS'Z'）
      */
     private String getFormattedDatetime() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
@@ -82,19 +68,23 @@ public class AmazonSPApiSigner {
     /**
      * 计算签名
      */
-    private String calculateSignature(String uri, String method, String body, String datetime, Credentials credentials) throws Exception {
+    private String calculateSignature(String uri, String method, String body, String datetime, 
+                                       String dateStamp, String accessKeyId, String secretKey, String region) throws Exception {
+        
         // 1. 规范化URI
         String canonicalUri = normalizeUri(uri);
 
         // 2. 规范化查询字符串
-        String canonicalQueryString = "";
+        String canonicalQueryString = getCanonicalQueryString(uri);
 
         // 3. 规范化请求头
-        String canonicalHeaders = "host:" + "sellingpartnerapi-na.amazon.com" + "\n" +
-                                "x-amz-date:" + datetime + "\n";
+        String host = amazonConfig.getApiBaseUrl().replace("https://", "").replace("http://", "");
+        String canonicalHeaders = "content-type:application/json\n" +
+                                 "host:" + host + "\n" +
+                                 "x-amz-date:" + datetime + "\n";
 
         // 4. 签名头列表
-        String signedHeaders = "host;x-amz-date";
+        String signedHeaders = "content-type;host;x-amz-date";
 
         // 5. 计算请求体哈希
         String payloadHash = sha256Hex(body);
@@ -110,30 +100,36 @@ public class AmazonSPApiSigner {
         log.debug("规范请求:\n{}", canonicalRequest);
 
         // 7. 计算待签字符串
-        String credentialScope = datetime.substring(0, 8) + "/" + amazonConfig.getRegion() + "/execute-api/aws4_request";
+        String credentialScope = dateStamp + "/" + region + "/execute-api/aws4_request";
         String stringToSign = "AWS4-HMAC-SHA256\n" + datetime + "\n" + credentialScope + "\n" + sha256Hex(canonicalRequest);
 
+        log.debug("待签字符串:\n{}", stringToSign);
+
         // 8. 计算签名
-        byte[] signingKey = getSignatureKey(credentials.getSecretKey(), datetime.substring(0, 8), amazonConfig.getRegion(), "execute-api");
+        byte[] signingKey = getSignatureKey(secretKey, dateStamp, region, "execute-api");
         byte[] signature = hmacSHA256(signingKey, stringToSign);
 
-        return BinaryUtils.toHex(signature);
+        return bytesToHex(signature);
     }
 
     /**
-     * 构建凭证字符串
+     * 获取规范化查询字符串
      */
-    private String buildCredentialString(String datetime) {
-        return amazonConfig.getAwsAccessKeyId() + "/" +
-               datetime.substring(0, 8) + "/" +
-               amazonConfig.getRegion() + "/execute-api/aws4_request";
-    }
-
-    /**
-     * 获取签名字符串
-     */
-    private String getSignedHeaders() {
-        return "host;x-amz-date";
+    private String getCanonicalQueryString(String uri) {
+        StringBuilder queryString = new StringBuilder();
+        int queryIndex = uri.indexOf('?');
+        if (queryIndex > 0) {
+            String query = uri.substring(queryIndex + 1);
+            String[] params = query.split("&");
+            Arrays.sort(params);
+            for (int i = 0; i < params.length; i++) {
+                if (i > 0) {
+                    queryString.append("&");
+                }
+                queryString.append(params[i]);
+            }
+        }
+        return queryString.toString();
     }
 
     /**
@@ -154,7 +150,18 @@ public class AmazonSPApiSigner {
     private String sha256Hex(String text) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         md.update(text.getBytes(StandardCharsets.UTF_8));
-        return BinaryUtils.toHex(md.digest());
+        return bytesToHex(md.digest());
+    }
+
+    /**
+     * bytes转十六进制
+     */
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     /**

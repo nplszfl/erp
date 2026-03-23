@@ -1,5 +1,9 @@
 package com.crossborder.erp.order.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.crossborder.erp.order.entity.Order;
 import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.order.mapper.OrderMapper;
@@ -11,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -22,6 +27,11 @@ import java.util.List;
 public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements OrderService {
 
     private final OrderItemMapper orderItemMapper;
+
+    @Override
+    public long count(LambdaQueryWrapper<Order> wrapper) {
+        return super.count(wrapper);
+    }
 
     @Override
     @Timed(value = "order.create", description = "创建订单", histogram = true)
@@ -114,7 +124,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     }
 
     @Override
-    @Timed(value(value = "order.getOrderItems", description = "查询订单商品")
+    @Timed(value = "order.getOrderItems", description = "查询订单商品")
     public List<OrderItem> getOrderItems(Long orderId) {
         LambdaQueryWrapper<OrderItem> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OrderItem::getOrderId, orderId);

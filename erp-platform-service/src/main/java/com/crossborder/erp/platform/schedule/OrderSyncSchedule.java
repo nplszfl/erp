@@ -5,6 +5,7 @@ import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.platform.api.PlatformOrderSync;
 import com.crossborder.erp.platform.entity.PlatformConfig;
 import com.crossborder.erp.platform.service.PlatformConfigService;
+import com.crossborder.erp.order.service.OrderService;
 import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 订单同步调度器（带监控）
@@ -26,7 +28,16 @@ public class OrderSyncSchedule {
 
     private final PlatformConfigService platformConfigService;
     private final Map<String, PlatformOrderSync> platformSyncMap;
-    private final List<RemoteCall<OrderService>> orderServiceClients;
+    private final OrderService orderService;
+
+    /**
+     * 获取所有平台的同步实现（包含过滤后的bean）
+     */
+    private Map<String, PlatformOrderSync> getPlatformSyncMap() {
+        return platformSyncMap.entrySet().stream()
+                .filter(e -> e.getValue() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
     /**
      * 每10分钟同步一次订单
@@ -41,7 +52,7 @@ public class OrderSyncSchedule {
                 .filter(config -> config.getStatus() == 1) // 只同步启用的配置
                 .forEach(this::syncPlatformOrders);
 
-        log log.info("订单同步完成");
+        log.info("订单同步完成");
     }
 
     /**
@@ -87,12 +98,41 @@ public class OrderSyncSchedule {
     }
 
     /**
+     * 手动触发单个平台订单同步
+     * @param platform 平台类型
+     * @param shopId 店铺ID
+     */
+    public void syncPlatformOrders(String platform, String shopId) {
+        log.info("手动触发订单同步: platform={}, shopId={}", platform, shopId);
+        
+        // 创建一个虚拟的 PlatformConfig 用于调用
+        PlatformConfig config = new PlatformConfig();
+        config.setPlatform(platform);
+        config.setShopId(shopId);
+        config.setShopName("手动触发");
+        config.setStatus(1);
+        
+        syncPlatformOrders(config);
+    }
+
+    /**
      * 保存订单到订单服务
      */
     @Timed(value = "sync.save.order", description = "保存订单到订单服务")
     private void saveOrderToOrderService(Order order, List<OrderItem> items) {
-        // TODO: 调用订单服务API保存订单
-        // 可以通过Feign调用，或者通过消息队列异步处理
-        log.info("保存订单到订单服务: {}", order.getPlatformOrderNo());
+        try {
+            // 检查订单是否已存在
+            Order existingOrder = orderService.getOrderByPlatformOrderNo(order.getPlatform(), order.getPlatformOrderNo());
+            if (existingOrder != null) {
+                log.info("订单已存在，跳过: {}", order.getPlatformOrderNo());
+                return;
+            }
+            
+            // 调用订单服务保存订单
+            Long orderId = orderService.createOrder(order, items);
+            log.info("订单保存成功: platformOrderNo={}, orderId={}", order.getPlatformOrderNo(), orderId);
+        } catch (Exception e) {
+            log.error("保存订单失败: {}", order.getPlatformOrderNo(), e);
+        }
     }
 }

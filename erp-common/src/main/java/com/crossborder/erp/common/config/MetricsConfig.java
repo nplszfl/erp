@@ -40,7 +40,7 @@ public class MetricsConfig {
     public Gauge orderStatusGauge(MeterRegistry registry) {
         return Gauge.builder("order.status", this::getOrderStatusCount)
                 .description("各状态订单数量")
-                .tag("status", "", "")
+                .tag("module", "orders")
                 .register(registry);
     }
 
@@ -49,9 +49,9 @@ public class MetricsConfig {
      */
     @Bean
     public Counter platformApiCallCounter(MeterRegistry registry) {
-        return Counter("platform.api.call.count",
-                "平台API调用总次数",
-                registry);
+        return Counter.builder("platform.api.call.count")
+                .description("平台API调用总次数")
+                .register(registry);
     }
 
     /**
@@ -59,9 +59,9 @@ public class MetricsConfig {
      */
     @Bean
     public Counter platformApiErrorCounter(MeterRegistry registry) {
-        return Counter("platform.api.error.count",
-                "平台API调用失败次数",
-                registry);
+        return Counter.builder("platform.api.error.count")
+                .description("平台API调用失败次数")
+                .register(registry);
     }
 
     /**

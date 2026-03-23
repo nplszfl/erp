@@ -10,25 +10,40 @@ import com.crossborder.erp.user.service.AuthService;
 import com.crossborder.erp.user.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements AuthService {
 
-    private final StringRedisTemplate redisTemplate;
-    private final PasswordEncoder passwordEncoder;
+    private StringRedisTemplate redisTemplate;
+    private PasswordEncoder passwordEncoder;
+    private JwtUtil jwtUtil;
 
-    @Value("${jwt.expiration}")
+    @Value("${jwt.expiration:86400000}")
     private long jwtExpiration;
+
+    @Autowired
+    public void setRedisTemplate(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
+    @Autowired
+    public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Autowired
+    public void setJwtUtil(JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -49,10 +64,10 @@ public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements Au
         }
 
         // 生成Token
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
 
         // 生成Refresh Token
-        String refreshToken = JwtUtil.generateRefreshToken(user.getId());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
         // 存储到Redis
         String redisKey = "token:" + user.getId();
@@ -67,7 +82,7 @@ public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements Au
         return new LoginResponse(
                 token,
                 refreshToken,
-                new LoginResponse.UserInfo(user.getId(), user.getUsername(), user.getRealNameName(), user.getEmail(), user.getAvatar())
+                new LoginResponse.UserInfo(user.getId(), user.getUsername(), user.getRealName(), user.getEmail(), user.getAvatar())
         );
     }
 
@@ -77,7 +92,7 @@ public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements Au
             token = token.substring(7);
         }
 
-        Long userId = JwtUtil.getUserIdFromToken(token);
+        Long userId = jwtUtil.getUserIdFromToken(token);
         if (userId != null) {
             String redisKey = "token:" + userId;
             redisTemplate.delete(redisKey);
@@ -87,7 +102,7 @@ public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements Au
 
     @Override
     public LoginResponse refreshToken(String refreshToken) {
-        Long userId = JwtUtil.getUserIdFromToken(refreshToken);
+        Long userId = jwtUtil.getUserIdFromToken(refreshToken);
         if (userId == null) {
             throw new RuntimeException("Refresh Token无效");
         }
@@ -97,8 +112,8 @@ public class AuthServiceImpl extends ServiceImpl<UserMapper, User> implements Au
             throw new RuntimeException("用户不存在");
         }
 
-        String newToken = JwtUtil.generateToken(userId, user.getUsername());
-        String newRefreshToken = JwtUtil.generateRefreshToken(userId);
+        String newToken = jwtUtil.generateToken(userId, user.getUsername());
+        String newRefreshToken = jwtUtil.generateRefreshToken(userId);
 
         String redisKey = "token:" + userId;
         redisTemplate.opsForValue().set(redisKey, newToken, jwtExpiration, TimeUnit.MILLISECONDS);

@@ -1,4 +1,4 @@
-package com.cro ssborder.erp.common.exception;
+package com.crossborder.erp.common.exception;
 
 import lombok.Getter;
 

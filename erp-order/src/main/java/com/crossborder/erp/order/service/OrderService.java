@@ -1,5 +1,6 @@
 package com.crossborder.erp.order.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.crossborder.erp.order.entity.Order;
@@ -11,6 +12,13 @@ import java.util.List;
  * 订单服务接口
  */
 public interface OrderService {
+
+    /**
+     * 统计订单数量
+     * @param wrapper 查询条件
+     * @return 订单数量
+     */
+    long count(LambdaQueryWrapper<Order> wrapper);
 
     /**
      * 创建订单
