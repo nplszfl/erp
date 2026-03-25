@@ -1,5 +1,6 @@
 package com.crossborder.inventoryprediction.controller;
 
+import com.crossborder.inventoryprediction.dto.AccuracyEvaluation;
 import com.crossborder.inventoryprediction.dto.PredictionRequest;
 import com.crossborder.inventoryprediction.dto.PredictionResponse;
 import com.crossborder.inventoryprediction.dto.ReplenishmentSuggestion;
@@ -7,8 +8,10 @@ import com.crossborder.inventoryprediction.service.InventoryPredictionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -73,5 +76,31 @@ public class InventoryPredictionController {
     @GetMapping("/health")
     public String health() {
         return "库存预测服务运行中！🔥";
+    }
+
+    @Operation(summary = "评估预测准确性")
+    @GetMapping("/accuracy/{productId}")
+    public AccuracyEvaluation evaluateAccuracy(
+            @PathVariable Long productId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return inventoryPredictionService.evaluateAccuracy(productId, startDate, endDate);
+    }
+
+    @Operation(summary = "批量评估预测准确性")
+    @PostMapping("/accuracy/batch")
+    public List<AccuracyEvaluation> batchEvaluateAccuracy(
+            @RequestParam List<Long> productIds,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return inventoryPredictionService.batchEvaluateAccuracy(productIds, startDate, endDate);
+    }
+
+    @Operation(summary = "获取准确性趋势")
+    @GetMapping("/accuracy-trend/{productId}")
+    public List<AccuracyEvaluation> getAccuracyTrend(
+            @PathVariable Long productId,
+            @RequestParam(defaultValue = "30") int days) {
+        return inventoryPredictionService.getAccuracyTrend(productId, days);
     }
 }

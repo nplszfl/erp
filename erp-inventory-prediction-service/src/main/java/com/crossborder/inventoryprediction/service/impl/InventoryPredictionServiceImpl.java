@@ -1,5 +1,6 @@
 package com.crossborder.inventoryprediction.service.impl;
 
+import com.crossborder.inventoryprediction.dto.AccuracyEvaluation;
 import com.crossborder.inventoryprediction.dto.PredictionRequest;
 import com.crossborder.inventoryprediction.dto.PredictionResponse;
 import com.crossborder.inventoryprediction.dto.ReplenishmentSuggestion;
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -484,5 +486,173 @@ public class InventoryPredictionServiceImpl implements InventoryPredictionServic
      */
     private void recordLowStockWarning() {
         statistics.setLowStockWarnings(statistics.getLowStockWarnings() + 1);
+    }
+
+    // ========== 准确性评估方法 ==========
+
+    @Override
+    public AccuracyEvaluation evaluateAccuracy(Long productId, LocalDate startDate, LocalDate endDate) {
+        log.info("评估预测准确性 - 产品ID: {}, 开始: {}, 结束: {}", productId, startDate, endDate);
+
+        // 生成模拟的历史预测数据和实际销售数据
+        List<AccuracyEvaluation.DailyComparison> comparisons = generateComparisonData(productId, startDate, endDate);
+
+        // 计算各项误差指标
+        double mape = calculateMAPE(comparisons);
+        double mae = calculateMAE(comparisons);
+        double rmse = calculateRMSE(comparisons);
+        double accuracy = Math.max(0, 100 - mape);
+
+        // 确定评估等级
+        String grade = determineGrade(mape);
+
+        // 计算汇总数据
+        long totalPredicted = comparisons.stream().mapToLong(AccuracyEvaluation.DailyComparison::getPredicted).sum();
+        long totalActual = comparisons.stream().mapToLong(AccuracyEvaluation.DailyComparison::getActual).sum();
+        double deviationPercent = totalActual > 0 ? ((double) (totalActual - totalPredicted) / totalActual * 100) : 0;
+
+        return AccuracyEvaluation.builder()
+                .productId(productId)
+                .productCode("PROD-" + productId)
+                .startDate(startDate)
+                .endDate(endDate)
+                .evaluationDays(comparisons.size())
+                .mape(mape)
+                .mae(mae)
+                .rmse(rmse)
+                .accuracy(accuracy)
+                .grade(grade)
+                .totalPredicted(totalPredicted)
+                .totalActual(totalActual)
+                .deviationPercent(deviationPercent)
+                .dailyComparisons(comparisons)
+                .evaluationTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                .build();
+    }
+
+    @Override
+    public List<AccuracyEvaluation> batchEvaluateAccuracy(List<Long> productIds, LocalDate startDate, LocalDate endDate) {
+        log.info("批量评估预测准确性 - 产品数量: {}", productIds.size());
+        return productIds.stream()
+                .map(id -> evaluateAccuracy(id, startDate, endDate))
+                .toList();
+    }
+
+    @Override
+    public List<AccuracyEvaluation> getAccuracyTrend(Long productId, int days) {
+        log.info("获取准确性趋势 - 产品ID: {}, 天数: {}", productId, days);
+
+        List<AccuracyEvaluation> trend = new ArrayList<>();
+        LocalDate endDate = LocalDate.now().minusDays(1);
+        LocalDate startDate = endDate.minusDays(days - 1);
+
+        // 每周评估一次
+        for (int i = 0; i < 4; i++) {
+            LocalDate weekStart = startDate.plusDays(i * 7L);
+            LocalDate weekEnd = weekStart.plusDays(6);
+            if (weekEnd.isAfter(endDate)) {
+                weekEnd = endDate;
+            }
+            if (!weekStart.isAfter(endDate)) {
+                trend.add(evaluateAccuracy(productId, weekStart, weekEnd));
+            }
+        }
+
+        return trend;
+    }
+
+    /**
+     * 生成历史预测与实际对比数据（模拟）
+     */
+    private List<AccuracyEvaluation.DailyComparison> generateComparisonData(Long productId, LocalDate startDate, LocalDate endDate) {
+        List<AccuracyEvaluation.DailyComparison> comparisons = new ArrayList<>();
+        LocalDate current = startDate;
+
+        while (!current.isAfter(endDate)) {
+            // 模拟历史预测值（基于历史数据生成的预测）
+            long basePredicted = productId * 10 + random.nextInt(30);
+            // 加入一些随机误差
+            long predicted = Math.max(0, basePredicted + (long) ((random.nextDouble() - 0.5) * 10));
+
+            // 模拟实际销售（预测值 ± 20% 随机波动）
+            long actual = Math.max(0, predicted + (long) ((random.nextDouble() - 0.5) * predicted * 0.4));
+
+            double error = actual - predicted;
+            double absError = Math.abs(error);
+            double percentageError = predicted > 0 ? (absError / predicted * 100) : 0;
+
+            comparisons.add(AccuracyEvaluation.DailyComparison.builder()
+                    .date(current)
+                    .predicted(predicted)
+                    .actual(actual)
+                    .error(error)
+                    .absError(absError)
+                    .percentageError(percentageError)
+                    .build());
+
+            current = current.plusDays(1);
+        }
+
+        return comparisons;
+    }
+
+    /**
+     * 计算 MAPE (平均绝对百分比误差)
+     */
+    private double calculateMAPE(List<AccuracyEvaluation.DailyComparison> comparisons) {
+        if (comparisons.isEmpty()) {
+            return 0;
+        }
+
+        double sumPercentageError = comparisons.stream()
+                .filter(c -> c.getPredicted() > 0)
+                .mapToDouble(AccuracyEvaluation.DailyComparison::getPercentageError)
+                .sum();
+
+        return sumPercentageError / comparisons.size();
+    }
+
+    /**
+     * 计算 MAE (平均绝对误差)
+     */
+    private double calculateMAE(List<AccuracyEvaluation.DailyComparison> comparisons) {
+        if (comparisons.isEmpty()) {
+            return 0;
+        }
+
+        return comparisons.stream()
+                .mapToDouble(AccuracyEvaluation.DailyComparison::getAbsError)
+                .average()
+                .orElse(0);
+    }
+
+    /**
+     * 计算 RMSE (均方根误差)
+     */
+    private double calculateRMSE(List<AccuracyEvaluation.DailyComparison> comparisons) {
+        if (comparisons.isEmpty()) {
+            return 0;
+        }
+
+        double sumSquaredError = comparisons.stream()
+                .mapToDouble(c -> c.getError() * c.getError())
+                .sum();
+
+        return Math.sqrt(sumSquaredError / comparisons.size());
+    }
+
+    /**
+     * 根据 MAPE 确定评估等级
+     */
+    private String determineGrade(double mape) {
+        if (mape < 10) {
+            return "EXCELLENT";
+        } else if (mape < 20) {
+            return "GOOD";
+        } else if (mape < 30) {
+            return "FAIR";
+        } else {
+            return "POOR";
+        }
     }
 }

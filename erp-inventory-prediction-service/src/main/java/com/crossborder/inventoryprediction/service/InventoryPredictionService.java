@@ -1,10 +1,12 @@
 package com.crossborder.inventoryprediction.service;
 
+import com.crossborder.inventoryprediction.dto.AccuracyEvaluation;
 import com.crossborder.inventoryprediction.dto.PredictionRequest;
 import com.crossborder.inventoryprediction.dto.PredictionResponse;
 import com.crossborder.inventoryprediction.dto.ReplenishmentSuggestion;
 import com.crossborder.inventoryprediction.dto.ServiceStatistics;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -83,4 +85,35 @@ public interface InventoryPredictionService {
      * 重置统计数据
      */
     void resetStatistics();
+
+    /**
+     * 评估预测准确性
+     * 对比历史预测与实际销售，计算各种误差指标
+     *
+     * @param productId 产品ID
+     * @param startDate 评估开始日期
+     * @param endDate 评估结束日期
+     * @return 准确性评估结果
+     */
+    AccuracyEvaluation evaluateAccuracy(Long productId, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 批量评估多个产品的预测准确性
+     *
+     * @param productIds 产品ID列表
+     * @param startDate 评估开始日期
+     * @param endDate 评估结束日期
+     * @return 准确性评估结果列表
+     */
+    List<AccuracyEvaluation> batchEvaluateAccuracy(List<Long> productIds, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 获取模型准确性趋势
+     * 分析一段时间内预测准确性的变化趋势
+     *
+     * @param productId 产品ID
+     * @param days 历史天数
+     * @return 准确性趋势数据
+     */
+    List<AccuracyEvaluation> getAccuracyTrend(Long productId, int days);
 }
