@@ -43,6 +43,7 @@
         <module>erp-user-service</module>
         <module>erp-pricing-service</module>
         <module>erp-inventory-prediction-service</module>
+        <module>erp-social-commerce-service</module>
     </modules>
 
     <dependencyManagement>
