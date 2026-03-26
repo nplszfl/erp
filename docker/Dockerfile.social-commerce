@@ -1,0 +1,33 @@
+FROM eclipse-temurin:21-jdk-alpine AS builder
+
+WORKDIR /app
+
+COPY pom.xml .
+COPY erp-common/pom.xml erp-common/
+COPY erp-social-commerce-service/pom.xml erp-social-commerce-service/
+
+RUN apk add --no-cache maven
+
+COPY erp-common/src erp-common/src
+COPY erp-social-commerce-service/src erp-social-commerce-service/src
+
+RUN mvn dependency:go-offline -B -pl erp-common,erp-social-commerce-service -am
+
+RUN mvn package -B -pl erp-social-commerce-service -am -DskipTests
+
+FROM eclipse-temurin:21-jre-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache curl
+
+COPY --from=builder /app/erp-social-commerce-service/target/*.jar app.jar
+
+EXPOSE 8086
+
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8086/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

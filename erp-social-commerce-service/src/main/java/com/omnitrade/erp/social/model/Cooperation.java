@@ -87,7 +87,7 @@ public class Cooperation {
     }
     
     public enum CooperationType {
-        LIVE, SHORT_VIDEO, POST, STORY, COLLABORATION
+        LIVE, SHORT_VIDEO, POST, STORY, COLLABORATION, LIVE_STREAM
     }
     
     public enum CooperationStatus {
