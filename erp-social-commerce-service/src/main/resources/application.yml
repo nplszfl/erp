@@ -1,0 +1,49 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: erp-social-commerce-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/erp_social?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+# TikTok API配置
+tiktok:
+  api:
+    base-url: https://open.tiktokshop.com
+    app-key: ${TIKTOK_APP_KEY:}
+    app-secret: ${TIKTOK_APP_SECRET:}
+  callback:
+    url: ${TIKTOK_CALLBACK_URL:}
+
+# 抖音API配置
+douyin:
+  api:
+    base-url: https://open.douyin.com
+    app-key: ${DOUYIN_APP_KEY:}
+    app-secret: ${DOUYIN_APP_SECRET:}
+  callback:
+    url: ${DOUYIN_CALLBACK_URL:}
+
+# OpenAPI配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.omnitrade: DEBUG
+    org.springframework.web: INFO
