@@ -162,7 +162,8 @@ public class LiveStreamService {
         repository.deleteById(id);
     }
     
-    private LiveStreamDTO toDTO(LiveStream entity) {
+    // Package-private for use by LiveStreamMonitorService
+    LiveStreamDTO toDTO(LiveStream entity) {
         return LiveStreamDTO.builder()
                 .id(entity.getId())
                 .streamId(entity.getStreamId())

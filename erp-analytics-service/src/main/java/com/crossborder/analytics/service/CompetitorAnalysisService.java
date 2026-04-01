@@ -1,6 +1,13 @@
 package com.crossborder.analytics.service;
 
-import com.crossborder.analytics.dto.CompetitorAnalysisDTO.*;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.CompetitorInfo;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.CompetitorShare;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.CompetitorTrend;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.MarketShare;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.PriceComparison;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.SalesComparison;
+import com.crossborder.analytics.dto.CompetitorAnalysisDTO.TrendData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

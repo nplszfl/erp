@@ -7,25 +7,29 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        server-addr: ${NACOS_HOST:localhost}:8848
         namespace: erp-dev
         group: DEFAULT_GROUP
       config:
-        server-addr: localhost:8848
+        server-addr: ${NACOS_HOST:localhost}:8848
         namespace: erp-dev
         group: DEFAULT_GROUP
         file-extension: yml
-        shared-configs:
-          - data-id: erp-gateway.yml
-            group: DEFAULT_GROUP
-            refresh: true
     gateway:
       discovery:
         locator:
           enabled: true
           lower-case-service-id: true
       routes:
-        # 订单服务路由
+        # 租户服务（新）
+        - id: tenant-service
+          uri: lb://erp-tenant-service
+          predicates:
+            - Path=/api/v1/auth/**,/api/v1/tenant/**
+          filters:
+            - StripPrefix=1
+
+        # 订单服务（多租户）
         - id: order-service
           uri: lb://erp-order-service
           predicates:
@@ -33,7 +37,39 @@ spring:
           filters:
             - StripPrefix=2
 
-        # 平台API服务路由
+        # 产品服务（多租户）
+        - id: product-service
+          uri: lb://erp-product-service
+          predicates:
+            - Path=/api/product/**
+          filters:
+            - StripPrefix=2
+
+        # 库存服务（多租户）
+        - id: inventory-service
+          uri: lb://erp-inventory-service
+          predicates:
+            - Path=/api/inventory/**
+          filters:
+            - StripPrefix=2
+
+        # 财务服务（多租户）
+        - id: finance-service
+          uri: lb://erp-finance-service
+          predicates:
+            - Path=/api/finance/**
+          filters:
+            - StripPrefix=2
+
+        # 仓库服务（多租户）
+        - id: warehouse-service
+          uri: lb://erp-warehouse-service
+          predicates:
+            - Path=/api/warehouse/**
+          filters:
+            - StripPrefix=2
+
+        # 平台API服务
         - id: platform-service
           uri: lb://erp-platform-service
           predicates:
@@ -52,10 +88,7 @@ management:
     web:
       exposure:
         include: '*'
-  endpoint:
-    health:
-      show-details: always
 
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO

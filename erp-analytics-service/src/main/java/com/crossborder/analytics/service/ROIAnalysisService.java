@@ -1,6 +1,10 @@
 package com.crossborder.analytics.service;
 
-import com.crossborder.analytics.dto.ROIAnalysisDTO.*;
+import com.crossborder.analytics.dto.ROIAnalysisDTO;
+import com.crossborder.analytics.dto.ROIAnalysisDTO.ROIDetail;
+import com.crossborder.analytics.dto.ROIAnalysisDTO.ROISummary;
+import com.crossborder.analytics.dto.ROIAnalysisDTO.ROITrend;
+import com.crossborder.analytics.dto.ROIAnalysisDTO.TopPerformer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

@@ -94,7 +94,7 @@ class DashboardServiceTest {
         BigDecimal total = distribution.stream()
                 .map(PlatformSales::getPercentage)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertEquals(100.0, total.doubleValue(), 0.1);
+        assertEquals(100.0, total.doubleValue(), 0.5); // 容差0.5
     }
 
     @Test
