@@ -1,7 +1,7 @@
 package com.crossborder.tenant.service;
 
-import com.crossborder.tenant.dto.AuthDTO.*;
-import com.crossborder.tenant.dto.RegisterRequest;
+import com.crossborder.tenant.dto.auth.AuthResponse;
+import com.crossborder.tenant.dto.auth.RegisterRequest;
 import com.crossborder.tenant.entity.TenantPlan;
 import com.crossborder.tenant.entity.TenantStatus;
 import org.junit.jupiter.api.Test;

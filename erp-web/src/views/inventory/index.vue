@@ -81,7 +81,7 @@
         <el-form :inline="true" :model="filterForm" class="filter-form">
           <el-form-item label="仓库">
             <el-select v-model="filterForm.warehouseId" placeholder="全部仓库" clearable style="width: 150px">
-              <el-option v-for="w in warehouses" :key="w.id" :label="w.name" :value="w.id" />
+              <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouseName" :value="w.id" />
             </el-select>
           </el-form-item>
           <el-form-item label="SKU">
@@ -111,6 +111,7 @@
         </el-table-column>
         <el-table-column prop="productName" label="商品名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="warehouseName" label="仓库" width="120" />
+        <el-table-column prop="locationCode" label="库位" width="100" />
         <el-table-column prop="availableQty" label="可用" width="80" align="right">
           <template #default="{ row }">
             <span :class="{ 'text-danger': row.availableQty < row.safetyStock }">{{ row.availableQty }}</span>
@@ -160,13 +161,16 @@
     </el-card>
 
     <!-- 库存调整对话框 -->
-    <el-dialog v-model="adjustDialogVisible" title="调整库存" width="400px">
+    <el-dialog v-model="adjustDialogVisible" title="调整库存" width="450px">
       <el-form ref="adjustFormRef" :model="adjustForm" :rules="adjustRules" label-width="80px">
         <el-form-item label="SKU">
-          <span>{{ adjustForm.skuCode }}</span>
+          <span class="text-primary">{{ adjustForm.skuCode }}</span>
+        </el-form-item>
+        <el-form-item label="仓库">
+          <span>{{ adjustForm.warehouseName }}</span>
         </el-form-item>
         <el-form-item label="当前库存">
-          <span>{{ adjustForm.currentQty }}</span>
+          <span class="text-bold">{{ adjustForm.currentQty }}</span>
         </el-form-item>
         <el-form-item label="调整类型" prop="type">
           <el-radio-group v-model="adjustForm.type">
@@ -188,7 +192,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="adjustForm.remark" type="textarea" :rows="2" />
+          <el-input v-model="adjustForm.remark" type="textarea" :rows="2" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -197,8 +201,43 @@
       </template>
     </el-dialog>
 
+    <!-- 调拨对话框 -->
+    <el-dialog v-model="transferDialogVisible" title="库存调拨" width="500px">
+      <el-form ref="transferFormRef" :model="transferForm" :rules="transferRules" label-width="80px">
+        <el-form-item label="SKU">
+          <span class="text-primary">{{ transferForm.skuCode }}</span>
+        </el-form-item>
+        <el-form-item label="从仓库">
+          <span>{{ transferForm.fromWarehouseName }}</span>
+        </el-form-item>
+        <el-form-item label="可用数">
+          <span class="text-bold">{{ transferForm.availableQty }}</span>
+        </el-form-item>
+        <el-form-item label="目标仓库" prop="toWarehouseId">
+          <el-select v-model="transferForm.toWarehouseId" placeholder="请选择目标仓库" style="width: 100%" @change="handleToWarehouseChange">
+            <el-option v-for="w in warehouses" :key="w.id" :label="w.warehouseName" :value="w.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标库位" prop="toLocationId">
+          <el-select v-model="transferForm.toLocationId" placeholder="请选择目标库位" style="width: 100%">
+            <el-option v-for="loc in toLocations" :key="loc.id" :label="loc.locationCode" :value="loc.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数量" prop="quantity">
+          <el-input-number v-model="transferForm.quantity" :min="1" :max="transferForm.availableQty" style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="transferForm.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="transferLoading" @click="handleTransferSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- SKU详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="库存详情" width="700px">
+    <el-dialog v-model="detailDialogVisible" title="库存详情" width="750px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="SKU">{{ currentDetail.skuCode }}</el-descriptions-item>
         <el-descriptions-item label="商品名称">{{ currentDetail.productName }}</el-descriptions-item>
@@ -235,14 +274,17 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Refresh, Download, Search, Box, CircleCheck, Warning, WarningFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
+import { inventoryApi, type Inventory, type StockFlow, type StockAdjustRequest, type StockTransferRequest } from '@/api/inventory'
+import { warehouseApi, type Warehouse, type WarehouseLocation } from '@/api/warehouse'
 
 const loading = ref(false)
 const adjustLoading = ref(false)
-const inventoryList = ref<any[]>([])
-const warehouses = ref<any[]>([])
-const stockFlows = ref<any[]>([])
+const transferLoading = ref(false)
+const inventoryList = ref<Inventory[]>([])
+const warehouses = ref<Warehouse[]>([])
+const stockFlows = ref<StockFlow[]>([])
 
 // 统计
 const stats = ref({ totalSku: 0, normalStock: 0, lowStock: 0, outOfStock: 0 })
@@ -265,8 +307,9 @@ const adjustFormRef = ref()
 const adjustForm = reactive({
   id: null as number | null,
   skuCode: '',
+  warehouseName: '',
   currentQty: 0,
-  type: 'increase',
+  type: 'increase' as 'increase' | 'decrease' | 'set',
   quantity: 0,
   reason: '',
   remark: ''
@@ -277,64 +320,69 @@ const adjustRules = {
   reason: [{ required: true, message: '请选择原因', trigger: 'change' }]
 }
 
+// 调拨对话框
+const transferDialogVisible = ref(false)
+const transferFormRef = ref()
+const transferForm = reactive({
+  fromInventoryId: null as number | null,
+  skuCode: '',
+  fromWarehouseName: '',
+  availableQty: 0,
+  toWarehouseId: null as number | null,
+  toLocationId: null as number | null,
+  quantity: 1,
+  remark: ''
+})
+const transferRules = {
+  toWarehouseId: [{ required: true, message: '请选择目标仓库', trigger: 'change' }],
+  toLocationId: [{ required: true, message: '请选择目标库位', trigger: 'change' }],
+  quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }]
+}
+const toLocations = ref<WarehouseLocation[]>([])
+
 // 详情对话框
 const detailDialogVisible = ref(false)
 const currentDetail = reactive<any>({})
 
 // 加载仓库列表
 const loadWarehouses = async () => {
-  // TODO: 调用API
-  warehouses.value = [
-    { id: 1, name: '美国仓' },
-    { id: 2, name: '欧洲仓' },
-    { id: 3, name: '东南亚仓' }
-  ]
+  try {
+    const res = await warehouseApi.getWarehouses({ status: 1 })
+    warehouses.value = res || []
+  } catch (error) {
+    console.error('加载仓库列表失败:', error)
+  }
 }
 
 // 加载统计数据
 const loadStats = async () => {
-  // TODO: 调用API
-  stats.value = { totalSku: 1256, normalStock: 1080, lowStock: 142, outOfStock: 34 }
+  try {
+    const res = await inventoryApi.getStats()
+    stats.value = res || { totalSku: 0, normalStock: 0, lowStock: 0, outOfStock: 0 }
+  } catch (error) {
+    console.error('加载统计失败:', error)
+  }
 }
 
 // 加载库存列表
 const loadInventory = async () => {
   loading.value = true
-  // TODO: 调用API
-  setTimeout(() => {
-    inventoryList.value = generateMockInventory()
-    pagination.total = 200
-    loading.value = false
-  }, 300)
-}
-
-const generateMockInventory = () => {
-  const warehouses = ['美国仓', '欧洲仓', '东南亚仓']
-  const statuses = ['normal', 'warning', 'danger', 'out']
-  return Array.from({ length: 20 }, (_, i) => {
-    const availableQty = Math.floor(Math.random() * 500)
-    const safetyStock = 50
-    let status = 'normal'
-    if (availableQty < safetyStock) status = 'out'
-    else if (availableQty < safetyStock * 2) status = 'danger'
-    else if (availableQty < safetyStock * 3) status = 'warning'
-    
-    return {
-      id: i + 1,
-      skuCode: `SKU${1000 + i}`,
-      productName: `商品名称 ${i + 1}`,
-      warehouseName: warehouses[i % 3],
-      warehouseId: (i % 3) + 1,
-      availableQty,
-      lockedQty: Math.floor(Math.random() * 20),
-      totalQty: availableQty + Math.floor(Math.random() * 20),
-      safetyStock,
-      status,
-      dailySales: Math.floor(Math.random() * 10) + 1,
-      turnoverDays: availableQty > 0 ? Math.floor(availableQty / (Math.floor(Math.random() * 10) + 1)) : 0,
-      locationCode: `A-${Math.floor(i / 10) + 1}-0${i % 10 + 1}`
+  try {
+    const params = {
+      current: pagination.current,
+      size: pagination.size,
+      warehouseId: filterForm.warehouseId || undefined,
+      skuCode: filterForm.skuCode || undefined,
+      status: filterForm.status || undefined
     }
-  })
+    const res = await inventoryApi.getInventoryList(params)
+    inventoryList.value = res.records || []
+    pagination.total = res.total || 0
+  } catch (error) {
+    console.error('加载库存列表失败:', error)
+  } finally {
+    loading.value = false
+  }
 }
 
 // 加载图表
@@ -353,9 +401,9 @@ const updateStatusChart = () => {
       type: 'pie',
       radius: ['40%', '70%'],
       data: [
-        { value: 1080, name: '正常', itemStyle: { color: '#67c23a' } },
-        { value: 142, name: '预警', itemStyle: { color: '#e6a23c' } },
-        { value: 34, name: '缺货', itemStyle: { color: '#f56c6c' } }
+        { value: stats.value.normalStock, name: '正常', itemStyle: { color: '#67c23a' } },
+        { value: stats.value.lowStock, name: '预警', itemStyle: { color: '#e6a23c' } },
+        { value: stats.value.outOfStock, name: '缺货', itemStyle: { color: '#f56c6c' } }
       ]
     }]
   })
@@ -365,13 +413,20 @@ const updateWarehouseChart = () => {
   if (!warehouseChartRef.value) return
   if (!warehouseChart) warehouseChart = echarts.init(warehouseChartRef.value)
   
+  // 按仓库统计数据
+  const warehouseData: Record<string, number> = {}
+  inventoryList.value.forEach(item => {
+    const name = item.warehouseName || '未知'
+    warehouseData[name] = (warehouseData[name] || 0) + item.totalQty
+  })
+  
   warehouseChart.setOption({
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: ['美国仓', '欧洲仓', '东南亚仓'] },
+    xAxis: { type: 'category', data: Object.keys(warehouseData) },
     yAxis: { type: 'value' },
     series: [{
       type: 'bar',
-      data: [45000, 32000, 28000],
+      data: Object.values(warehouseData),
       itemStyle: { color: '#409eff' }
     }]
   })
@@ -379,15 +434,42 @@ const updateWarehouseChart = () => {
 
 // 搜索重置
 const handleSearch = () => { pagination.current = 1; loadInventory() }
-const handleReset = () => { filterForm.warehouseId = null; filterForm.skuCode = ''; filterForm.status = ''; handleSearch() }
+const handleReset = () => { 
+  filterForm.warehouseId = null
+  filterForm.skuCode = '' 
+  filterForm.status = '' 
+  handleSearch() 
+}
 
 // 导出
-const handleExport = () => { ElMessage.info('导出功能开发中...') }
+const handleExport = async () => { 
+  try {
+    const params = {
+      current: 1,
+      size: 10000,
+      warehouseId: filterForm.warehouseId || undefined,
+      skuCode: filterForm.skuCode || undefined,
+      status: filterForm.status || undefined
+    }
+    const blob = await inventoryApi.exportInventory(params)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
+}
 
 // 调整库存
-const handleAdjust = (row: any) => {
+const handleAdjust = (row: Inventory) => {
   adjustForm.id = row.id
   adjustForm.skuCode = row.skuCode
+  adjustForm.warehouseName = row.warehouseName
   adjustForm.currentQty = row.availableQty
   adjustForm.type = 'increase'
   adjustForm.quantity = 0
@@ -400,27 +482,83 @@ const handleAdjustSubmit = async () => {
   const valid = await adjustFormRef.value?.validate().catch(() => false)
   if (!valid) return
   adjustLoading.value = true
-  // TODO: 调用API
-  setTimeout(() => {
+  try {
+    const data: StockAdjustRequest = {
+      inventoryId: adjustForm.id!,
+      type: adjustForm.type,
+      quantity: adjustForm.quantity,
+      reason: adjustForm.reason,
+      remark: adjustForm.remark
+    }
+    await inventoryApi.adjustStock(data)
     ElMessage.success('库存调整成功')
     adjustDialogVisible.value = false
-    adjustLoading.value = false
     loadInventory()
     loadStats()
-  }, 500)
+  } catch (error) {
+    console.error('调整库存失败:', error)
+  } finally {
+    adjustLoading.value = false
+  }
 }
 
 // 调拨
-const handleTransfer = (row: any) => { ElMessage.info('调拨功能开发中...') }
+const handleTransfer = (row: Inventory) => {
+  transferForm.fromInventoryId = row.id
+  transferForm.skuCode = row.skuCode
+  transferForm.fromWarehouseName = row.warehouseName
+  transferForm.availableQty = row.availableQty
+  transferForm.toWarehouseId = null
+  transferForm.toLocationId = null
+  transferForm.quantity = 1
+  transferForm.remark = ''
+  toLocations.value = []
+  transferDialogVisible.value = true
+}
+
+const handleToWarehouseChange = async (warehouseId: number) => {
+  try {
+    const res = await warehouseApi.getLocations(warehouseId)
+    toLocations.value = res?.filter((l: WarehouseLocation) => l.status === 1) || []
+  } catch (error) {
+    console.error('加载库位失败:', error)
+    toLocations.value = []
+  }
+}
+
+const handleTransferSubmit = async () => {
+  const valid = await transferFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+  transferLoading.value = true
+  try {
+    const data: StockTransferRequest = {
+      fromInventoryId: transferForm.fromInventoryId!,
+      toWarehouseId: transferForm.toWarehouseId!,
+      toLocationId: transferForm.toLocationId!,
+      quantity: transferForm.quantity,
+      remark: transferForm.remark
+    }
+    await inventoryApi.transferStock(data)
+    ElMessage.success('调拨成功')
+    transferDialogVisible.value = false
+    loadInventory()
+  } catch (error) {
+    console.error('调拨失败:', error)
+  } finally {
+    transferLoading.value = false
+  }
+}
 
 // 详情
-const handleDetail = (row: any) => {
+const handleDetail = async (row: Inventory) => {
   Object.assign(currentDetail, row)
-  stockFlows.value = [
-    { flowTime: '2026-03-30 10:00', flowType: 'in', quantity: 100, orderNo: 'PO202603001', remark: '采购入库' },
-    { flowTime: '2026-03-28 15:30', flowType: 'out', quantity: 25, orderNo: 'SO202603045', remark: '订单出库' },
-    { flowTime: '2026-03-25 09:00', flowType: 'in', quantity: 200, orderNo: 'PO202602088', remark: '采购入库' }
-  ]
+  try {
+    const res = await inventoryApi.getStockFlows(row.id)
+    stockFlows.value = res.records || []
+  } catch (error) {
+    console.error('加载流水失败:', error)
+    stockFlows.value = []
+  }
   detailDialogVisible.value = true
 }
 

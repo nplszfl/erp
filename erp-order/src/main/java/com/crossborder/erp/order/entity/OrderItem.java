@@ -51,6 +51,12 @@ public class OrderItem {
     private String internalSku;
 
     /**
+     * 商品SKU（通用查询字段，优先使用internalSku，否则用platformSku）
+     */
+    @TableField(exist = false)
+    private String productSku;
+
+    /**
      * 商品名称
      */
     @TableField("product_name")
@@ -102,4 +108,14 @@ public class OrderItem {
      */
     @TableLogic
     private Integer deleted;
+
+    /**
+     * 获取商品SKU（优先返回internalSku）
+     */
+    public String getProductSku() {
+        if (internalSku != null && !internalSku.isEmpty()) {
+            return internalSku;
+        }
+        return platformSku;
+    }
 }

@@ -4,19 +4,26 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.crossborder.erp.common.result.PageResult;
 import com.crossborder.erp.common.result.Result;
+import com.crossborder.erp.order.dto.OrderBatchRequest;
+import com.crossborder.erp.order.dto.OrderExportResponse;
+import com.crossborder.erp.order.dto.OrderQueryRequest;
 import com.crossborder.erp.order.entity.Order;
 import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订单Controller
  */
+@Slf4j
 @RestController
 @RequestMapping("/order")
 @RequiredArgsConstructor
@@ -97,6 +104,82 @@ public class OrderController {
     public Result<List<OrderItem>> getOrderItems(@PathVariable Long orderId) {
         List<OrderItem> items = orderService.getOrderItems(orderId);
         return Result.success(items);
+    }
+
+    // ========== 高级查询API ==========
+
+    /**
+     * 高级分页查询订单（支持多维度筛选）
+     */
+    @PostMapping("/advanced/list")
+    public Result<PageResult<Order>> advancedQuery(@RequestBody OrderQueryRequest request) {
+        log.info("高级订单查询请求: {}", request);
+        
+        Page<Order> page = new Page<>(request.getCurrent(), request.getSize());
+        IPage<Order> result = orderService.advancedQuery(page, request);
+        return Result.success(PageResult.of(result));
+    }
+
+    // ========== 批量操作API ==========
+
+    /**
+     * 批量更新订单状态
+     */
+    @PostMapping("/batch/update-status")
+    public Result<Integer> batchUpdateStatus(@RequestBody OrderBatchRequest request) {
+        log.info("批量更新订单状态, 订单数量: {}, 目标状态: {}", 
+                request.getOrderIds().size(), request.getTargetStatus());
+        
+        int count = orderService.batchUpdateStatus(request.getOrderIds(), request.getTargetStatus());
+        return Result.success(count);
+    }
+
+    /**
+     * 批量标记发货
+     */
+    @PostMapping("/batch/mark-shipped")
+    public Result<Integer> batchMarkShipped(@RequestBody OrderBatchRequest request) {
+        log.info("批量标记发货, 订单数量: {}", request.getOrderIds().size());
+        
+        int count = orderService.batchMarkShipped(
+                request.getOrderIds(), 
+                request.getTrackingNumber(), 
+                request.getLogisticsCompany()
+        );
+        return Result.success(count);
+    }
+
+    /**
+     * 批量导出订单
+     */
+    @PostMapping("/batch/export")
+    public Result<OrderExportResponse> exportOrders(@RequestBody OrderBatchRequest request) {
+        log.info("批量导出订单, 订单数量: {}", 
+                request.getOrderIds() != null ? request.getOrderIds().size() : 0);
+        
+        OrderQueryRequest queryRequest = new OrderQueryRequest();
+        OrderExportResponse response = orderService.exportOrders(request.getOrderIds(), queryRequest);
+        return Result.success(response);
+    }
+
+    // ========== 订单统计API ==========
+
+    /**
+     * 按国家统计订单数量
+     */
+    @PostMapping("/statistics/by-country")
+    public Result<Map<String, Long>> countByCountry(@RequestBody OrderQueryRequest request) {
+        Map<String, Long> stats = orderService.countByCountry(request);
+        return Result.success(stats);
+    }
+
+    /**
+     * 按平台统计订单金额
+     */
+    @PostMapping("/statistics/by-platform")
+    public Result<Map<String, BigDecimal>> sumAmountByPlatform(@RequestBody OrderQueryRequest request) {
+        Map<String, BigDecimal> stats = orderService.sumAmountByPlatform(request);
+        return Result.success(stats);
     }
 
     /**

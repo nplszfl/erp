@@ -21,8 +21,13 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: '/order',
-        component: () => import('@/views/order/index.vue'),
+        component: () => import('@/views/order/OrderList.vue'),
         meta: { title: '订单管理' }
+      },
+      {
+        path: '/order/detail/:id',
+        component: () => import('@/views/order/index.vue'),
+        meta: { title: '订单详情' }
       },
       {
         path: '/product',
@@ -40,9 +45,29 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '库存管理' }
       },
       {
+        path: '/inventory-alert',
+        component: () => import('@/views/inventory-alert/InventoryAlert.vue'),
+        meta: { title: '库存预警' }
+      },
+      {
         path: '/warehouse',
         component: () => import('@/views/warehouse/index.vue'),
         meta: { title: '仓库管理' }
+      },
+      {
+        path: '/logistics',
+        component: () => import('@/views/logistics/Logistics.vue'),
+        meta: { title: '物流管理' }
+      },
+      {
+        path: '/customer',
+        component: () => import('@/views/customer/CustomerList.vue'),
+        meta: { title: '客户管理' }
+      },
+      {
+        path: '/supplier',
+        component: () => import('@/views/supplier/SupplierList.vue'),
+        meta: { title: '供应商管理' }
       },
       {
         path: '/finance',

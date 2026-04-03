@@ -85,12 +85,57 @@
       </el-col>
     </el-row>
 
-    <!-- 筛选和列表 -->
+    <!-- 账户管理 -->
+    <el-card shadow="never" class="account-card">
+      <template #header>
+        <div class="card-header">
+          <span>账户管理</span>
+          <el-button type="primary" size="small" :icon="Plus" @click="handleAddAccount">添加账户</el-button>
+        </div>
+      </template>
+      <el-table :data="accounts" stripe style="width: 100%">
+        <el-table-column prop="accountName" label="账户名称" width="150" />
+        <el-table-column prop="accountNo" label="账号" width="180" />
+        <el-table-column prop="accountType" label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag>{{ getAccountType(row.accountType) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="bankName" label="银行/渠道" width="150" />
+        <el-table-column prop="currency" label="币种" width="80" />
+        <el-table-column prop="balance" label="余额" width="120" align="right">
+          <template #default="{ row }">
+            <span class="text-bold text-primary">¥{{ formatNumber(row.balance) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="isDefault" label="默认" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="row.isDefault === 1" type="success" size="small">是</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
+              {{ row.status === 1 ? '启用' : '停用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="handleEditAccount(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="handleDeleteAccount(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- 流水记录 -->
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
           <span>流水记录</span>
-          <el-button type="primary" :icon="Plus" @click="handleAdd">新增流水</el-button>
+          <el-button type="primary" :icon="Plus" @click="handleAddFlow">新增流水</el-button>
         </div>
       </template>
 
@@ -99,7 +144,7 @@
         <el-form :inline="true" :model="filterForm" class="filter-form">
           <el-form-item label="账户">
             <el-select v-model="filterForm.accountId" placeholder="全部账户" clearable style="width: 150px">
-              <el-option v-for="acc in accounts" :key="acc.id" :label="acc.name" :value="acc.id" />
+              <el-option v-for="acc in accounts" :key="acc.id" :label="acc.accountName" :value="acc.id" />
             </el-select>
           </el-form-item>
           <el-form-item label="类型">
@@ -155,7 +200,7 @@
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip />
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleView(row)">详情</el-button>
+            <el-button type="primary" link @click="handleViewFlow(row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -172,39 +217,88 @@
       />
     </el-card>
 
-    <!-- 新增/详情对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
+    <!-- 账户对话框 -->
+    <el-dialog v-model="accountDialogVisible" :title="accountDialogTitle" width="500px">
+      <el-form ref="accountFormRef" :model="accountForm" :rules="accountFormRules" label-width="100px">
+        <el-form-item label="账户名称" prop="accountName">
+          <el-input v-model="accountForm.accountName" placeholder="请输入账户名称" />
+        </el-form-item>
+        <el-form-item label="账号" prop="accountNo">
+          <el-input v-model="accountForm.accountNo" placeholder="请输入账号" />
+        </el-form-item>
+        <el-form-item label="账户类型" prop="accountType">
+          <el-select v-model="accountForm.accountType" placeholder="请选择类型" style="width: 100%">
+            <el-option label="银行账户" value="bank" />
+            <el-option label="支付宝" value="alipay" />
+            <el-option label="PayPal" value="paypal" />
+            <el-option label="万里汇" value="worldfirst" />
+            <el-option label="派安盈" value="payoneer" />
+            <el-option label="其他" value="other" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="银行/渠道">
+          <el-input v-model="accountForm.bankName" placeholder="请输入银行或支付渠道" />
+        </el-form-item>
+        <el-form-item label="币种">
+          <el-select v-model="accountForm.currency" placeholder="请选择币种" style="width: 100%">
+            <el-option label="人民币 (CNY)" value="CNY" />
+            <el-option label="美元 (USD)" value="USD" />
+            <el-option label="欧元 (EUR)" value="EUR" />
+            <el-option label="英镑 (GBP)" value="GBP" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="初始余额">
+          <el-input-number v-model="accountForm.balance" :min="0" :precision="2" style="width: 200px" />
+        </el-form-item>
+        <el-form-item label="设为默认">
+          <el-switch v-model="accountForm.isDefault" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-radio-group v-model="accountForm.status">
+            <el-radio :label="1">启用</el-radio>
+            <el-radio :label="0">停用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="accountDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="accountSubmitLoading" @click="handleAccountSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 流水对话框 -->
+    <el-dialog v-model="flowDialogVisible" :title="flowDialogTitle" width="600px">
+      <el-form ref="flowFormRef" :model="flowForm" :rules="flowFormRules" label-width="100px">
         <el-form-item label="流水类型" prop="type">
-          <el-radio-group v-model="form.type">
+          <el-radio-group v-model="flowForm.type">
             <el-radio label="income">收入</el-radio>
             <el-radio label="expense">支出</el-radio>
             <el-radio label="refund">退款</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="金额" prop="amount">
-          <el-input-number v-model="form.amount" :min="0" :precision="2" :step="100" style="width: 200px" />
+          <el-input-number v-model="flowForm.amount" :min="0" :precision="2" :step="100" style="width: 200px" />
         </el-form-item>
         <el-form-item label="账户" prop="accountId">
-          <el-select v-model="form.accountId" placeholder="请选择账户" style="width: 200px">
-            <el-option v-for="acc in accounts" :key="acc.id" :label="acc.name" :value="acc.id" />
+          <el-select v-model="flowForm.accountId" placeholder="请选择账户" style="width: 200px">
+            <el-option v-for="acc in accounts" :key="acc.id" :label="acc.accountName" :value="acc.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="分类" prop="categoryId">
-          <el-select v-model="form.categoryId" placeholder="请选择分类" style="width: 200px">
+          <el-select v-model="flowForm.categoryId" placeholder="请选择分类" style="width: 200px">
             <el-option v-for="cat in categories" :key="cat.id" :label="cat.name" :value="cat.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="关联订单">
-          <el-input v-model="form.orderNo" placeholder="可选" />
+          <el-input v-model="flowForm.orderNo" placeholder="可选" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入备注" />
+          <el-input v-model="flowForm.remark" type="textarea" :rows="3" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="flowDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="flowSubmitLoading" @click="handleFlowSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -213,18 +307,22 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { Plus, Search, Refresh, TrendCharts, Wallet, Money, Document } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import * as echarts from 'echarts'
+import { 
+  financeAccountApi, financeFlowApi, financeCategoryApi, 
+  type FinanceAccount, type FinanceFlow, type FinanceCategory,
+  type FinanceStatistics 
+} from '@/api/finance'
 
 const loading = ref(false)
-const submitLoading = ref(false)
-const flowList = ref<any[]>([])
-const accounts = ref<any[]>([])
-const categories = ref<any[]>([])
+const flowList = ref<FinanceFlow[]>([])
+const accounts = ref<FinanceAccount[]>([])
+const categories = ref<FinanceCategory[]>([])
 
 // 统计卡片数据
-const stats = ref({
+const stats = ref<FinanceStatistics>({
   totalIncome: 0,
   totalExpense: 0,
   profit: 0,
@@ -254,11 +352,34 @@ const filterForm = reactive({
   dateRange: [] as string[]
 })
 
-// 对话框
-const dialogVisible = ref(false)
-const dialogTitle = ref('新增流水')
-const formRef = ref()
-const form = reactive({
+// 账户对话框
+const accountDialogVisible = ref(false)
+const accountDialogTitle = ref('添加账户')
+const accountFormRef = ref()
+const accountSubmitLoading = ref(false)
+const accountForm = reactive({
+  id: null as number | null,
+  accountName: '',
+  accountNo: '',
+  accountType: 'bank',
+  bankName: '',
+  currency: 'CNY',
+  balance: 0,
+  isDefault: 0,
+  status: 1
+})
+const accountFormRules = {
+  accountName: [{ required: true, message: '请输入账户名称', trigger: 'blur' }],
+  accountNo: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+  accountType: [{ required: true, message: '请选择账户类型', trigger: 'change' }]
+}
+
+// 流水对话框
+const flowDialogVisible = ref(false)
+const flowDialogTitle = ref('新增流水')
+const flowFormRef = ref()
+const flowSubmitLoading = ref(false)
+const flowForm = reactive({
   id: null as number | null,
   type: 'income',
   amount: 0,
@@ -267,8 +388,7 @@ const form = reactive({
   orderNo: '',
   remark: ''
 })
-
-const formRules = {
+const flowFormRules = {
   type: [{ required: true, message: '请选择流水类型', trigger: 'change' }],
   amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
   accountId: [{ required: true, message: '请选择账户', trigger: 'change' }],
@@ -277,126 +397,94 @@ const formRules = {
 
 // 加载统计数据
 const loadStats = async () => {
-  // TODO: 调用API
-  // const res = await financeApi.getStatistics()
-  // stats.value = res.data
-
-  // 模拟数据
-  stats.value = {
-    totalIncome: 286500.00,
-    totalExpense: 145200.00,
-    profit: 141300.00,
-    recordCount: 328
+  try {
+    const params: any = {}
+    if (filterForm.dateRange?.length === 2) {
+      params.startDate = filterForm.dateRange[0]
+      params.endDate = filterForm.dateRange[1]
+    }
+    const res = await financeFlowApi.getStatistics(params)
+    stats.value = res || { totalIncome: 0, totalExpense: 0, profit: 0, recordCount: 0 }
+  } catch (error) {
+    console.error('加载统计失败:', error)
   }
 }
 
 // 加载账户列表
 const loadAccounts = async () => {
-  // TODO: 调用API
-  // const res = await financeApi.getAccounts()
-  // accounts.value = res.data
-
-  // 模拟数据
-  accounts.value = [
-    { id: 1, name: '主账户' },
-    { id: 2, name: 'PayPal' },
-    { id: 3, name: '万里汇' }
-  ]
+  try {
+    const res = await financeAccountApi.getAccounts()
+    accounts.value = res || []
+  } catch (error) {
+    console.error('加载账户列表失败:', error)
+  }
 }
 
 // 加载分类列表
 const loadCategories = async () => {
-  // TODO: 调用API
-  // const res = await financeApi.getCategories()
-  // categories.value = res.data
-
-  // 模拟数据
-  categories.value = [
-    { id: 1, name: '平台销售收入' },
-    { id: 2, name: '商品采购' },
-    { id: 3, name: '物流费用' },
-    { id: 4, name: '平台费用' },
-    { id: 5, name: '营销推广' }
-  ]
+  try {
+    const res = await financeCategoryApi.getCategories()
+    categories.value = res || []
+  } catch (error) {
+    console.error('加载分类列表失败:', error)
+  }
 }
 
 // 加载流水列表
 const loadFlows = async () => {
   loading.value = true
-  // TODO: 调用API
-  // const params = {
-  //   ...filterForm,
-  //   page: pagination.current,
-  //   size: pagination.size
-  // }
-  // const res = await financeApi.getFlows(params)
-  // flowList.value = res.data.records
-  // pagination.total = res.data.total
-
-  // 模拟数据
-  setTimeout(() => {
-    flowList.value = generateMockFlows()
-    pagination.total = 100
-    loading.value = false
-  }, 300)
-}
-
-// 生成模拟数据
-const generateMockFlows = () => {
-  const types = ['income', 'expense', 'refund']
-  const categories = ['平台销售收入', '商品采购', '物流费用', '平台费用', '营销推广']
-  const accounts = ['主账户', 'PayPal', '万里汇']
-  
-  return Array.from({ length: 20 }, (_, i) => {
-    const type = types[Math.floor(Math.random() * 3)]
-    const amount = Math.floor(Math.random() * 10000) + 100
-    return {
-      id: i + 1,
-      recordNo: `FIN${Date.now()}${i}`,
-      type,
-      amount,
-      orderNo: `ORD${20260310000 + i}`,
-      categoryName: categories[Math.floor(Math.random() * categories.length)],
-      accountName: accounts[Math.floor(Math.random() * accounts.length)],
-      remark: '示例备注',
-      createTime: dayjs().subtract(i, 'day').format('YYYY-MM-DD HH:mm:ss')
+  try {
+    const params = {
+      current: pagination.current,
+      size: pagination.size,
+      accountId: filterForm.accountId || undefined,
+      type: filterForm.type || undefined,
+      startDate: filterForm.dateRange?.[0],
+      endDate: filterForm.dateRange?.[1]
     }
-  })
+    const res = await financeFlowApi.getFlows(params)
+    flowList.value = res.records || []
+    pagination.total = res.total || 0
+  } catch (error) {
+    console.error('加载流水列表失败:', error)
+  } finally {
+    loading.value = false
+  }
 }
 
 // 加载图表数据
 const loadChartData = async () => {
-  // TODO: 调用API获取趋势数据
-  updateTrendChart()
-  updatePieChart()
+  try {
+    const days = parseInt(chartPeriod.value)
+    const trendData = await financeFlowApi.getTrendData(days)
+    const categoryData = await financeFlowApi.getCategoryData()
+    updateTrendChart(trendData || [])
+    updatePieChart(categoryData || [])
+  } catch (error) {
+    console.error('加载图表数据失败:', error)
+    updateTrendChart([])
+    updatePieChart([])
+  }
 }
 
 // 更新趋势图
-const updateTrendChart = () => {
+const updateTrendChart = (data: any[]) => {
   if (!trendChartRef.value) return
   
   if (!trendChart) {
     trendChart = echarts.init(trendChartRef.value)
   }
 
-  const days = parseInt(chartPeriod.value)
-  const dates = Array.from({ length: days }, (_, i) => 
-    dayjs().subtract(days - 1 - i, 'day').format('MM-DD')
-  )
-  
-  const incomeData = dates.map(() => Math.floor(Math.random() * 20000) + 5000)
-  const expenseData = dates.map(() => Math.floor(Math.random() * 10000) + 2000)
-
   const option = {
     tooltip: { trigger: 'axis' },
     legend: { data: ['收入', '支出'] },
-    xAxis: { type: 'category', data: dates },
+    xAxis: { type: 'category', data: data.map(d => d.date) },
     yAxis: { type: 'value', axisLabel: { formatter: '¥{value}' } },
     series: [
       {
         name: '收入',
         type: 'line',
-        data: incomeData,
+        data: data.map(d => d.income),
         smooth: true,
         areaStyle: { opacity: 0.3 },
         itemStyle: { color: '#67c23a' }
@@ -404,7 +492,7 @@ const updateTrendChart = () => {
       {
         name: '支出',
         type: 'line',
-        data: expenseData,
+        data: data.map(d => d.expense),
         smooth: true,
         areaStyle: { opacity: 0.3 },
         itemStyle: { color: '#f56c6c' }
@@ -416,13 +504,15 @@ const updateTrendChart = () => {
 }
 
 // 更新饼图
-const updatePieChart = () => {
+const updatePieChart = (data: any[]) => {
   if (!pieChartRef.value) return
   
   if (!pieChart) {
     pieChart = echarts.init(pieChartRef.value)
   }
 
+  const colors = ['#67c23a', '#f56c6c', '#e6a23c', '#409eff', '#909399']
+  
   const option = {
     tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)' },
     series: [{
@@ -431,13 +521,11 @@ const updatePieChart = () => {
       avoidLabelOverlap: true,
       itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
       label: { show: true, formatter: '{b}' },
-      data: [
-        { value: 154800, name: '平台销售收入' },
-        { value: 58000, name: '商品采购' },
-        { value: 32000, name: '物流费用' },
-        { value: 28000, name: '平台费用' },
-        { value: 15200, name: '营销推广' }
-      ]
+      data: data.map((d, i) => ({
+        value: d.amount,
+        name: d.categoryName,
+        itemStyle: { color: colors[i % colors.length] }
+      }))
     }]
   }
 
@@ -448,6 +536,7 @@ const updatePieChart = () => {
 const handleSearch = () => {
   pagination.current = 1
   loadFlows()
+  loadStats()
 }
 
 // 重置
@@ -458,49 +547,128 @@ const handleReset = () => {
   handleSearch()
 }
 
-// 新增
-const handleAdd = () => {
-  dialogTitle.value = '新增流水'
-  form.id = null
-  form.type = 'income'
-  form.amount = 0
-  form.accountId = null
-  form.categoryId = null
-  form.orderNo = ''
-  form.remark = ''
-  dialogVisible.value = true
+// 账户操作
+const handleAddAccount = () => {
+  accountDialogTitle.value = '添加账户'
+  accountForm.id = null
+  accountForm.accountName = ''
+  accountForm.accountNo = ''
+  accountForm.accountType = 'bank'
+  accountForm.bankName = ''
+  accountForm.currency = 'CNY'
+  accountForm.balance = 0
+  accountForm.isDefault = 0
+  accountForm.status = 1
+  accountDialogVisible.value = true
 }
 
-// 查看详情
-const handleView = (row: any) => {
-  dialogTitle.value = '流水详情'
-  form.id = row.id
-  form.type = row.type
-  form.amount = row.amount
-  form.accountId = row.accountId
-  form.categoryId = row.categoryId
-  form.orderNo = row.orderNo
-  form.remark = row.remark
-  dialogVisible.value = true
+const handleEditAccount = (row: FinanceAccount) => {
+  accountDialogTitle.value = '编辑账户'
+  accountForm.id = row.id
+  accountForm.accountName = row.accountName
+  accountForm.accountNo = row.accountNo
+  accountForm.accountType = row.accountType
+  accountForm.bankName = row.bankName || ''
+  accountForm.currency = row.currency
+  accountForm.balance = row.balance
+  accountForm.isDefault = row.isDefault
+  accountForm.status = row.status
+  accountDialogVisible.value = true
 }
 
-// 提交
-const handleSubmit = async () => {
-  const valid = await formRef.value?.validate().catch(() => false)
+const handleAccountSubmit = async () => {
+  const valid = await accountFormRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  submitLoading.value = true
-  // TODO: 调用API保存
-  setTimeout(() => {
-    ElMessage.success('保存成功')
-    dialogVisible.value = false
-    submitLoading.value = false
+  accountSubmitLoading.value = true
+  try {
+    if (accountForm.id) {
+      await financeAccountApi.updateAccount(accountForm)
+      ElMessage.success('更新成功')
+    } else {
+      await financeAccountApi.createAccount(accountForm)
+      ElMessage.success('创建成功')
+    }
+    accountDialogVisible.value = false
+    loadAccounts()
+  } catch (error) {
+    console.error('保存账户失败:', error)
+  } finally {
+    accountSubmitLoading.value = false
+  }
+}
+
+const handleDeleteAccount = (row: FinanceAccount) => {
+  ElMessageBox.confirm('确定删除该账户吗？', '提示', {
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await financeAccountApi.deleteAccount(row.id)
+      ElMessage.success('删除成功')
+      loadAccounts()
+    } catch (error) {
+      console.error('删除账户失败:', error)
+    }
+  }).catch(() => {})
+}
+
+// 流水操作
+const handleAddFlow = () => {
+  flowDialogTitle.value = '新增流水'
+  flowForm.id = null
+  flowForm.type = 'income'
+  flowForm.amount = 0
+  flowForm.accountId = null
+  flowForm.categoryId = null
+  flowForm.orderNo = ''
+  flowForm.remark = ''
+  flowDialogVisible.value = true
+}
+
+const handleViewFlow = (row: FinanceFlow) => {
+  flowDialogTitle.value = '流水详情'
+  flowForm.id = row.id
+  flowForm.type = row.type
+  flowForm.amount = row.amount
+  flowForm.accountId = row.accountId
+  flowForm.categoryId = row.categoryId
+  flowForm.orderNo = row.orderNo || ''
+  flowForm.remark = row.remark || ''
+  flowDialogVisible.value = true
+}
+
+const handleFlowSubmit = async () => {
+  const valid = await flowFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  flowSubmitLoading.value = true
+  try {
+    if (flowForm.id) {
+      await financeFlowApi.updateFlow(flowForm)
+      ElMessage.success('更新成功')
+    } else {
+      await financeFlowApi.createFlow(flowForm)
+      ElMessage.success('创建成功')
+    }
+    flowDialogVisible.value = false
     loadFlows()
     loadStats()
-  }, 500)
+  } catch (error) {
+    console.error('保存流水失败:', error)
+  } finally {
+    flowSubmitLoading.value = false
+  }
 }
 
 // 工具函数
+const getAccountType = (type: string) => {
+  const map: Record<string, string> = {
+    bank: '银行账户', alipay: '支付宝', paypal: 'PayPal',
+    worldfirst: '万里汇', payoneer: '派安盈', other: '其他'
+  }
+  return map[type] || type
+}
+
 const getFlowTypeTag = (type: string) => {
   if (type === 'income') return 'success'
   if (type === 'refund') return 'warning'
@@ -524,14 +692,13 @@ const formatAmount = (amount: number, type: string) => {
 }
 
 const formatTime = (time: string) => {
-  return dayjs(time).format('YYYY-MM-DD HH:mm')
+  return time ? dayjs(time).format('YYYY-MM-DD HH:mm') : '-'
 }
 
 const formatNumber = (num: number) => {
   return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-// 窗口大小改变时重新渲染图表
 const resizeCharts = () => {
   trendChart?.resize()
   pieChart?.resize()
@@ -608,6 +775,10 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
+.account-card {
+  margin-bottom: 20px;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -628,4 +799,7 @@ onUnmounted(() => {
 .filter-form {
   margin-bottom: 0;
 }
+
+.text-bold { font-weight: bold; }
+.text-primary { color: #409eff; }
 </style>
