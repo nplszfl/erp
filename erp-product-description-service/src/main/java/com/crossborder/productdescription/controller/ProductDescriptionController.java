@@ -45,7 +45,7 @@ public class ProductDescriptionController {
 
     @Operation(summary = "SEO优化")
     @PostMapping("/seo-optimize")
-    public DescriptionGenerationResponse.SEOoptimize optimizeSEO(
+    public DescriptionGenerationResponse.SEOResult optimizeSEO(
             @RequestParam Long productId,
             @RequestParam String platform) {
         return productDescriptionService.optimizeSEO(productId, platform);

@@ -50,7 +50,7 @@ public interface ProductDescriptionService {
      * @param platform 目标平台
      * @return SEO优化结果
      */
-    DescriptionGenerationResponse.SEOoptimize optimizeSEO(
+    DescriptionGenerationResponse.SEOResult optimizeSEO(
             Long productId,
             String platform);
 

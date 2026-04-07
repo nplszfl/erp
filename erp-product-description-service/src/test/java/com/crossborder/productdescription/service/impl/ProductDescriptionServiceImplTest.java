@@ -68,7 +68,7 @@ class ProductDescriptionServiceImplTest {
         assertNotNull(response.getSeoResult());
         assertNotNull(response.getSeoResult().getTitle());
         assertNotNull(response.getSeoResult().getDescription());
-        assertNotNull(response.getSeoResult().getSeoScore());
+        assertNotNull(response.getSeoResult().getSeoscore());
     }
 
     @Test
@@ -170,7 +170,7 @@ class ProductDescriptionServiceImplTest {
     @DisplayName("测试SEO优化")
     void testOptimizeSEO() {
         // 执行测试
-        DescriptionGenerationResponse.SEOoptimize seoResult = 
+        DescriptionGenerationResponse.SEOResult seoResult = 
                 productDescriptionService.optimizeSEO(1L, "amazon");
 
         // 验证结果
@@ -180,7 +180,7 @@ class ProductDescriptionServiceImplTest {
         assertNotNull(seoResult.getPrimaryKeywords());
         assertNotNull(seoResult.getKeywordDensity());
         assertNotNull(seoResult.getReadabilityScore());
-        assertNotNull(seoResult.getSeoScore());
+        assertNotNull(seoResult.getSeoscore());
         assertNotNull(seoResult.getSuggestions());
     }
 

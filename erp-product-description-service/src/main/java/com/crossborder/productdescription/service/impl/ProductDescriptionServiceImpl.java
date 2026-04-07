@@ -67,14 +67,14 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
 
             // 3. SEO优化
             if (Boolean.TRUE.equals(request.getEnableSEO())) {
-                DescriptionGenerationResponse.SEOoptimize seoResult = optimizeSEO(description, request);
+                DescriptionGenerationResponse.SEOResult seoResult = optimizeSEO(description, request);
                 response.setSeoResult(seoResult);
             }
 
             // 4. 提炼亮点
             if (Boolean.TRUE.equals(request.getExtractHighlights())) {
                 List<DescriptionGenerationResponse.Highlight> highlights = 
-                        extractHighlights(request.getFeatures());
+                        extractHighlights(request.getFeatures(), 5);
                 response.setHighlights(highlights);
             }
 
@@ -138,7 +138,7 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
     }
 
     @Override
-    public DescriptionGenerationResponse.SEOoptimize optimizeSEO(
+    public DescriptionGenerationResponse.SEOResult optimizeSEO(
             Long productId,
             String platform) {
         log.info("SEO优化 - 产品ID: {}, 平台: {}", productId, platform);
@@ -382,12 +382,22 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
     /**
      * 生成模拟描述
      */
+    /**
+     * 生成模拟描述（用于测试或无LLM API时）
+     */
     private String generateMockDescription(DescriptionGenerationRequest request) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(request.getProductName()).append(" - ");
+        if (request.getFeatures() != null) {
+            sb.append(String.join(", ", request.getFeatures()));
+        }
+        return sb.toString();
+    }
 
     /**
      * SEO优化
      */
-    private DescriptionGenerationResponse.SEOoptimize optimizeSEO(
+    private DescriptionGenerationResponse.SEOResult optimizeSEO(
             String description,
             DescriptionGenerationRequest request) {
         return optimizeSEO(description, request.getProductName(), request.getTargetPlatform());
@@ -396,11 +406,11 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
     /**
      * SEO优化
      */
-    private DescriptionGenerationResponse.SEOoptimize optimizeSEO(
+    private DescriptionGenerationResponse.SEOResult optimizeSEO(
             String description,
             String productName,
             String platform) {
-        DescriptionGenerationResponse.SEOoptimize result = new DescriptionGenerationResponse.SEOoptimize();
+        DescriptionGenerationResponse.SEOResult result = new DescriptionGenerationResponse.SEOResult();
 
         // 优化标题
         String optimizedTitle = optimizeTitle(productName, platform);
@@ -422,7 +432,7 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
         result.setReadabilityScore(calculateReadabilityScore(description));
 
         // SEO评分
-        result.setSeoScore(calculateSEOScore(result));
+        result.setSeoscore(calculateSEOScore(result));
 
         // 改进建议
         List<String> suggestions = generateSEOSuggestions(result);
@@ -527,13 +537,13 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
     /**
      * 计算SEO评分
      */
-    private Double calculateSEOScore(DescriptionGenerationResponse.SEOoptimize result) {
+    private Double calculateSEOScore(DescriptionGenerationResponse.SEOResult result) {
         double score = 0;
 
         // 关键词密度 (30分)
         double avgDensity = (double) result.getKeywordDensity().values().stream()
                 .mapToDouble(d -> d)
-                .sum() / result.getKeywordDensity().size());
+                .sum() / result.getKeywordDensity().size();
         score += Math.min(30, avgDensity * 10);
 
         // 可读性 (30分)
@@ -561,10 +571,10 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
     /**
      * 生成SEO改进建议
      */
-    private List<String> generateSEOSuggestions(DescriptionGenerationResponse.SEOoptimize result) {
+    private List<String> generateSEOSuggestions(DescriptionGenerationResponse.SEOResult result) {
         List<String> suggestions = new ArrayList<>();
 
-        if (result.getSeoScore() < 50) {
+        if (result.getSeoscore() < 50) {
             suggestions.add("建议增加更多产品特性描述");
         }
 
@@ -603,7 +613,7 @@ public class ProductDescriptionServiceImpl implements ProductDescriptionService 
             highlight.setId("highlight-" + (i + 1));
             highlight.setTitle("核心优势 " + (i + 1));
             highlight.setDescription(features.get(i));
-            highlight.setImportity(5 - i); // 重要性递减
+            highlight.setImportance(5 - i); // 重要性递减
             highlight.setFeature(features.get(i));
 
             highlights.add(highlight);
