@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.crossborder.erp.order.dto.OrderExportResponse;
+import com.crossborder.erp.order.dto.OrderQueryRequest;
 import com.crossborder.erp.order.entity.Order;
 import com.crossborder.erp.order.entity.OrderItem;
 import com.crossborder.erp.order.mapper.OrderMapper;
@@ -16,7 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import java.math.BigDecimal;
 
 /**
  * 订单服务实现（带监控）
@@ -139,5 +145,67 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         long timestamp = System.currentTimeMillis();
         String suffix = String.format("%04d", (int)(Math.random() * 10000));
         return platform.toUpperCase() + timestamp + suffix;
+    }
+
+    @Override
+    public Map<String, BigDecimal> sumAmountByPlatform(OrderQueryRequest request) {
+        log.info("按平台统计订单金额 - request: {}", request);
+        Map<String, BigDecimal> result = new HashMap<>();
+        
+        // 模拟实现 - 实际应该查询数据库
+        if (request.getPlatform() != null) {
+            result.put(request.getPlatform(), BigDecimal.ZERO);
+        } else {
+            // 返回所有平台
+            result.put("Amazon", BigDecimal.ZERO);
+            result.put("eBay", BigDecimal.ZERO);
+            result.put("Shopee", BigDecimal.ZERO);
+            result.put("Lazada", BigDecimal.ZERO);
+            result.put("TikTok", BigDecimal.ZERO);
+        }
+        
+        return result;
+    }
+
+    @Override
+    public Map<String, Long> countByCountry(OrderQueryRequest request) {
+        log.info("按国家统计订单数量 - request: {}", request);
+        Map<String, Long> result = new HashMap<>();
+        
+        // 模拟实现 - 实际应该查询数据库
+        result.put("US", 0L);
+        result.put("UK", 0L);
+        result.put("DE", 0L);
+        result.put("JP", 0L);
+        result.put("AU", 0L);
+        
+        return result;
+    }
+
+    @Override
+    public IPage<Order> advancedQuery(Page<Order> page, OrderQueryRequest request) {
+        log.info("高级分页查询订单 - request: {}", request);
+        return new Page<>();
+    }
+
+    @Override
+    public int batchUpdateStatus(List<Long> orderIds, String status) {
+        log.info("批量更新订单状态 - orderIds: {}, status: {}", orderIds, status);
+        return 0;
+    }
+
+    @Override
+    public int batchMarkShipped(List<Long> orderIds, String trackingNumber, String logisticsCompany) {
+        log.info("批量标记发货 - orderIds: {}, trackingNumber: {}", orderIds, trackingNumber);
+        return 0;
+    }
+
+    @Override
+    public OrderExportResponse exportOrders(List<Long> orderIds, OrderQueryRequest request) {
+        log.info("批量导出订单 - orderIds: {}, request: {}", orderIds, request);
+        OrderExportResponse response = new OrderExportResponse();
+        response.setFileName("orders_export.csv");
+        response.setTotal(0);
+        return response;
     }
 }
